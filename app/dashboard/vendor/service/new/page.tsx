@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Upload,
@@ -27,18 +28,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { VendorRoute } from "@/components/auth/protected-route";
+import { useToast } from "@/contexts/ToastContext";
+import { categoriesApi, servicesApi, uploadFile } from "@/lib/api";
+import type { Category } from "@/lib/api/types";
 
-// ============ MOCK DATA ============
-const mockCategories = [
-  { id: "cat1", name: "Fotografer", icon: "📷" },
-  { id: "cat2", name: "Makeup Artist", icon: "💄" },
-  { id: "cat3", name: "Bunga & Gift", icon: "💐" },
-  { id: "cat4", name: "Videografer", icon: "🎥" },
-  { id: "cat5", name: "Dekorasi", icon: "🎨" },
-  { id: "cat6", name: "Catering", icon: "🍽️" },
-];
-
-const mockLocations = [
+// ============ STATIC DATA ============
+const availableLocations = [
   "Bandung",
   "Jakarta",
   "Surabaya",
@@ -50,7 +46,20 @@ const mockLocations = [
 ];
 
 // Default empty service for create mode
-const emptyService = {
+interface FormData {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  durationMinutes: number;
+  categoryId: string;
+  location: string;
+  imageFiles: File[];
+  imageUrls: string[];
+  isFeatured: boolean;
+}
+
+const emptyService: FormData = {
   id: "",
   title: "",
   description: "",
@@ -58,26 +67,10 @@ const emptyService = {
   durationMinutes: 60,
   categoryId: "",
   location: "",
-  images: [] as string[],
+  imageFiles: [],
+  imageUrls: [],
   isFeatured: false,
-  includes: [""],
-  excludes: [""],
 };
-
-// Mock existing service for edit mode (uncomment to test edit)
-// const existingService = {
-//   id: "s1",
-//   title: "Paket Foto Wisuda Premium ITB",
-//   description: "Paket lengkap foto wisuda dengan 3 jam pemotretan...",
-//   price: 850000,
-//   durationMinutes: 180,
-//   categoryId: "cat1",
-//   location: "Bandung",
-//   images: ["/Fotografer-wisuda.png", "/Fotografer-wisuda.png"],
-//   isFeatured: true,
-//   includes: ["60 foto edit", "3 jam pemotretan", "Softcopy via Google Drive"],
-//   excludes: ["Cetak foto", "Album"],
-// };
 
 // ============ HELPER FUNCTIONS ============
 function formatPrice(price: number) {
@@ -118,21 +111,32 @@ function Header({ isEdit }: { isEdit: boolean }) {
 }
 
 function ImageUploader({
-  images,
+  imageFiles,
   onImagesChange,
 }: {
-  images: string[];
-  onImagesChange: (images: string[]) => void;
+  imageFiles: File[];
+  onImagesChange: (files: File[]) => void;
 }) {
-  const handleAddImage = () => {
-    // In real app, this would open file picker
-    // For mock, we add a placeholder
-    onImagesChange([...images, "/Fotografer-wisuda.png"]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+
+  // Generate preview URLs when files change
+  useEffect(() => {
+    const urls = imageFiles.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [imageFiles]);
+
+  const handleAddImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    const newFiles = Array.from(files).slice(0, 5 - imageFiles.length);
+    onImagesChange([...imageFiles, ...newFiles]);
   };
 
   const handleRemoveImage = (index: number) => {
-    const newImages = images.filter((_, i) => i !== index);
-    onImagesChange(newImages);
+    const newFiles = imageFiles.filter((_, i) => i !== index);
+    onImagesChange(newFiles);
   };
 
   return (
@@ -141,27 +145,25 @@ function ImageUploader({
         <ImageIcon className="h-5 w-5 text-gray-500" />
         <h2 className="font-semibold text-gray-900">Foto Layanan</h2>
         <Badge variant="outline" className="ml-auto">
-          {images.length}/5 foto
+          {imageFiles.length}/5 foto
         </Badge>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {images.map((image, index) => (
+        {previewUrls.map((url, index) => (
           <div
             key={index}
             className="group relative aspect-square overflow-hidden rounded-xl border"
           >
             <Image
-              src={image}
+              src={url}
               alt={`Service image ${index + 1}`}
               fill
               className="object-cover"
             />
             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-              <button className="rounded-full bg-white p-2 hover:bg-gray-100">
-                <GripVertical className="h-4 w-4 text-gray-600" />
-              </button>
               <button
+                type="button"
                 onClick={() => handleRemoveImage(index)}
                 className="rounded-full bg-red-500 p-2 hover:bg-red-600"
               >
@@ -176,14 +178,18 @@ function ImageUploader({
           </div>
         ))}
 
-        {images.length < 5 && (
-          <button
-            onClick={handleAddImage}
-            className="flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-500 transition-all hover:border-[#C0287F] hover:bg-pink-50 hover:text-[#C0287F]"
-          >
+        {imageFiles.length < 5 && (
+          <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-500 transition-all hover:border-[#C0287F] hover:bg-pink-50 hover:text-[#C0287F]">
             <Upload className="h-8 w-8" />
             <span className="text-sm font-medium">Tambah Foto</span>
-          </button>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleAddImage}
+              className="hidden"
+            />
+          </label>
         )}
       </div>
 
@@ -197,11 +203,26 @@ function ImageUploader({
 
 function BasicInfoForm({
   formData,
+  categories,
   onChange,
 }: {
-  formData: typeof emptyService;
-  onChange: (data: Partial<typeof emptyService>) => void;
+  formData: FormData;
+  categories: Category[];
+  onChange: (data: Partial<FormData>) => void;
 }) {
+  // Category icons based on name
+  const getCategoryIcon = (name: string): string => {
+    const icons: Record<string, string> = {
+      Fotografer: "📷",
+      "Makeup Artist": "💄",
+      "Bunga & Gift": "💐",
+      Videografer: "🎥",
+      Dekorasi: "🎨",
+      Catering: "🍽️",
+    };
+    return icons[name] || "📦";
+  };
+
   return (
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
@@ -232,7 +253,7 @@ function BasicInfoForm({
             Kategori <span className="text-red-500">*</span>
           </label>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {mockCategories.map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
@@ -243,7 +264,7 @@ function BasicInfoForm({
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
-                <span className="text-xl">{cat.icon}</span>
+                <span className="text-xl">{getCategoryIcon(cat.name)}</span>
                 <span className="text-sm font-medium">{cat.name}</span>
               </button>
             ))}
@@ -275,8 +296,8 @@ function PricingForm({
   formData,
   onChange,
 }: {
-  formData: typeof emptyService;
-  onChange: (data: Partial<typeof emptyService>) => void;
+  formData: FormData;
+  onChange: (data: Partial<FormData>) => void;
 }) {
   const durationOptions = [
     { value: 30, label: "30 menit" },
@@ -360,134 +381,13 @@ function PricingForm({
               className="h-12 w-full appearance-none rounded-xl border border-gray-200 bg-white pl-10 pr-10 text-sm focus:border-[#C0287F] focus:outline-none focus:ring-1 focus:ring-[#C0287F]"
             >
               <option value="">Pilih lokasi</option>
-              {mockLocations.map((loc) => (
+              {availableLocations.map((loc) => (
                 <option key={loc} value={loc}>
                   {loc}
                 </option>
               ))}
             </select>
             <ChevronDown className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function IncludesExcludesForm({
-  formData,
-  onChange,
-}: {
-  formData: typeof emptyService;
-  onChange: (data: Partial<typeof emptyService>) => void;
-}) {
-  const handleAddInclude = () => {
-    onChange({ includes: [...formData.includes, ""] });
-  };
-
-  const handleRemoveInclude = (index: number) => {
-    const newIncludes = formData.includes.filter((_, i) => i !== index);
-    onChange({ includes: newIncludes.length > 0 ? newIncludes : [""] });
-  };
-
-  const handleIncludeChange = (index: number, value: string) => {
-    const newIncludes = [...formData.includes];
-    newIncludes[index] = value;
-    onChange({ includes: newIncludes });
-  };
-
-  const handleAddExclude = () => {
-    onChange({ excludes: [...formData.excludes, ""] });
-  };
-
-  const handleRemoveExclude = (index: number) => {
-    const newExcludes = formData.excludes.filter((_, i) => i !== index);
-    onChange({ excludes: newExcludes.length > 0 ? newExcludes : [""] });
-  };
-
-  const handleExcludeChange = (index: number, value: string) => {
-    const newExcludes = [...formData.excludes];
-    newExcludes[index] = value;
-    onChange({ excludes: newExcludes });
-  };
-
-  return (
-    <div className="rounded-2xl border bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
-        <CheckCircle className="h-5 w-5 text-gray-500" />
-        <h2 className="font-semibold text-gray-900">
-          Yang Termasuk & Tidak Termasuk
-        </h2>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Includes */}
-        <div>
-          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-green-700">
-            <CheckCircle className="h-4 w-4" />
-            Yang Termasuk
-          </label>
-          <div className="space-y-2">
-            {formData.includes.map((item, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  value={item}
-                  onChange={(e) => handleIncludeChange(index, e.target.value)}
-                  placeholder="Contoh: 60 foto edit"
-                  className="flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveInclude(index)}
-                  className="rounded-lg border p-2 text-gray-400 hover:bg-gray-50 hover:text-red-500"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={handleAddInclude}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-green-200 py-2 text-sm text-green-600 hover:border-green-300 hover:bg-green-50"
-            >
-              <Plus className="h-4 w-4" />
-              Tambah Item
-            </button>
-          </div>
-        </div>
-
-        {/* Excludes */}
-        <div>
-          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-red-700">
-            <X className="h-4 w-4" />
-            Yang Tidak Termasuk
-          </label>
-          <div className="space-y-2">
-            {formData.excludes.map((item, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  value={item}
-                  onChange={(e) => handleExcludeChange(index, e.target.value)}
-                  placeholder="Contoh: Cetak foto"
-                  className="flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveExclude(index)}
-                  className="rounded-lg border p-2 text-gray-400 hover:bg-gray-50 hover:text-red-500"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={handleAddExclude}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-red-200 py-2 text-sm text-red-600 hover:border-red-300 hover:bg-red-50"
-            >
-              <Plus className="h-4 w-4" />
-              Tambah Item
-            </button>
           </div>
         </div>
       </div>
@@ -530,7 +430,7 @@ function FeaturedToggle({
   );
 }
 
-function FormValidation({ formData }: { formData: typeof emptyService }) {
+function FormValidation({ formData }: { formData: FormData }) {
   const errors: string[] = [];
 
   if (!formData.title) errors.push("Nama layanan wajib diisi");
@@ -539,7 +439,7 @@ function FormValidation({ formData }: { formData: typeof emptyService }) {
   if (!formData.price || formData.price <= 0)
     errors.push("Masukkan harga layanan");
   if (!formData.location) errors.push("Pilih lokasi layanan");
-  if (formData.images.length === 0)
+  if (formData.imageFiles.length === 0)
     errors.push("Upload minimal 1 foto layanan");
 
   if (errors.length === 0) return null;
@@ -547,7 +447,7 @@ function FormValidation({ formData }: { formData: typeof emptyService }) {
   return (
     <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
       <div className="flex items-start gap-3">
-        <AlertCircle className="h-5 w-5 flex-shrink-0 text-orange-500" />
+        <AlertCircle className="h-5 w-5 shrink-0 text-orange-500" />
         <div>
           <p className="font-medium text-orange-800">Lengkapi data berikut:</p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-orange-700">
@@ -562,13 +462,35 @@ function FormValidation({ formData }: { formData: typeof emptyService }) {
 }
 
 // ============ MAIN PAGE ============
-export default function CreateServicePage() {
-  const isEdit = false; // Change to true for edit mode
-  const [formData, setFormData] = useState(emptyService);
+function CreateServiceContent() {
+  const router = useRouter();
+  const toast = useToast();
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [formData, setFormData] = useState<FormData>(emptyService);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleChange = (data: Partial<typeof emptyService>) => {
+  // Fetch categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setIsLoading(true);
+        const data = await categoriesApi.getAll();
+        setCategories(data);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+        toast.error("Gagal memuat kategori");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, [toast]);
+
+  const handleChange = (data: Partial<FormData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
   };
 
@@ -578,18 +500,52 @@ export default function CreateServicePage() {
     formData.description &&
     formData.price > 0 &&
     formData.location &&
-    formData.images.length > 0;
+    formData.imageFiles.length > 0;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isFormValid) return;
 
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Upload images first
+      const imageUrls: string[] = [];
+      for (const file of formData.imageFiles) {
+        const result = await uploadFile("/uploads/services", file);
+        imageUrls.push(result.url);
+      }
+
+      // Create service
+      await servicesApi.create({
+        categoryId: formData.categoryId,
+        title: formData.title,
+        description: formData.description,
+        price: formData.price,
+        durationMinutes: formData.durationMinutes,
+        location: formData.location,
+        imageUrls,
+        isFeatured: formData.isFeatured,
+      });
+
+      toast.success("Layanan berhasil dibuat!");
       setShowSuccess(true);
-    }, 2000);
+    } catch (err) {
+      console.error("Failed to create service:", err);
+      toast.error("Gagal membuat layanan");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#C0287F]" />
+          <p className="mt-2 text-gray-600">Memuat data...</p>
+        </div>
+      </main>
+    );
+  }
 
   if (showSuccess) {
     return (
@@ -599,11 +555,11 @@ export default function CreateServicePage() {
             <CheckCircle className="h-10 w-10 text-green-500" />
           </div>
           <h1 className="mb-2 text-2xl font-bold text-gray-900">
-            Layanan Berhasil {isEdit ? "Diperbarui" : "Dibuat"}!
+            Layanan Berhasil Dibuat!
           </h1>
           <p className="mb-6 text-gray-600">
-            Layanan Anda sudah {isEdit ? "diperbarui" : "ditambahkan"} dan dapat
-            dilihat oleh customer di marketplace.
+            Layanan Anda sudah ditambahkan dan dapat dilihat oleh customer di
+            marketplace.
           </p>
           <div className="space-y-3">
             <Link href="/dashboard/vendor">
@@ -629,20 +585,22 @@ export default function CreateServicePage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-32">
-      <Header isEdit={isEdit} />
+      <Header isEdit={false} />
 
       <div className="mx-auto max-w-3xl px-4 py-6">
         <div className="space-y-4">
           <ImageUploader
-            images={formData.images}
-            onImagesChange={(images) => handleChange({ images })}
+            imageFiles={formData.imageFiles}
+            onImagesChange={(files) => handleChange({ imageFiles: files })}
           />
 
-          <BasicInfoForm formData={formData} onChange={handleChange} />
+          <BasicInfoForm
+            formData={formData}
+            categories={categories}
+            onChange={handleChange}
+          />
 
           <PricingForm formData={formData} onChange={handleChange} />
-
-          <IncludesExcludesForm formData={formData} onChange={handleChange} />
 
           <FeaturedToggle
             isFeatured={formData.isFeatured}
@@ -656,14 +614,11 @@ export default function CreateServicePage() {
       {/* Fixed Bottom Actions */}
       <div className="fixed bottom-0 left-0 right-0 border-t bg-white p-4 shadow-lg">
         <div className="mx-auto flex max-w-3xl gap-3">
-          <Button variant="outline" className="flex-1 gap-2">
-            <Eye className="h-4 w-4" />
-            Preview
-          </Button>
-          <Button variant="outline" className="gap-2">
-            <Save className="h-4 w-4" />
-            Simpan Draft
-          </Button>
+          <Link href="/dashboard/vendor" className="flex-1">
+            <Button variant="outline" className="w-full gap-2">
+              Batal
+            </Button>
+          </Link>
           <Button
             onClick={handleSubmit}
             disabled={!isFormValid || isSubmitting}
@@ -677,12 +632,20 @@ export default function CreateServicePage() {
             ) : (
               <>
                 <CheckCircle className="h-4 w-4" />
-                {isEdit ? "Perbarui Layanan" : "Publikasikan"}
+                Publikasikan
               </>
             )}
           </Button>
         </div>
       </div>
     </main>
+  );
+}
+
+export default function CreateServicePage() {
+  return (
+    <VendorRoute>
+      <CreateServiceContent />
+    </VendorRoute>
   );
 }

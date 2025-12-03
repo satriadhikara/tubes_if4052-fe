@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -24,31 +25,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-
-// ============ MOCK DATA ============
-const mockBookingCheckout = {
-  id: "BK-2024120001",
-  service: {
-    id: "s1",
-    title: "Paket Foto Wisuda Premium ITB",
-    imageUrl: "/Fotografer-wisuda.png",
-    price: 850000,
-    durationMinutes: 180,
-    categoryName: "Fotografer",
-  },
-  vendor: {
-    displayName: "Bandung Photo Studio",
-    avatar: "/young-indonesian-man-portrait.jpg",
-  },
-  eventDate: "2025-07-15T08:00:00",
-  location: "Kampus ITB Ganesha, Bandung",
-  payment: {
-    paymentReference: "PAY-2024120001",
-    subtotal: 850000,
-    serviceFee: 8500,
-    total: 858500,
-  },
-};
+import { Skeleton } from "@/components/ui/loading";
+import { CustomerRoute } from "@/components/auth/protected-route";
+import { useToast } from "@/contexts/ToastContext";
+import { bookingsApi, uploadFile } from "@/lib/api";
+import type { Booking } from "@/lib/api/types";
 
 const paymentMethods = [
   {
@@ -146,19 +127,21 @@ function formatDuration(minutes: number) {
 }
 
 // ============ COMPONENTS ============
-function Header() {
+function Header({ booking }: { booking: Booking }) {
   return (
     <header className="sticky top-0 z-50 border-b bg-white px-4 py-3 shadow-sm">
       <div className="mx-auto flex max-w-4xl items-center gap-4">
         <Link
-          href={`/booking/${mockBookingCheckout.id}`}
+          href="/dashboard/customer"
           className="rounded-full p-2 hover:bg-gray-100"
         >
           <ArrowLeft className="h-5 w-5 text-gray-600" />
         </Link>
         <div className="flex-1">
           <h1 className="font-semibold text-gray-900">Pembayaran</h1>
-          <p className="text-sm text-gray-500">#{mockBookingCheckout.id}</p>
+          <p className="text-sm text-gray-500">
+            #{booking.id.slice(0, 8).toUpperCase()}
+          </p>
         </div>
         <Link href="/">
           <Image src="/Logo.svg" alt="Wisudahub" width={100} height={28} />
@@ -168,8 +151,14 @@ function Header() {
   );
 }
 
-function OrderSummary() {
-  const { service, vendor, eventDate, location, payment } = mockBookingCheckout;
+function OrderSummary({ booking }: { booking: Booking }) {
+  // Calculate payment details
+  const subtotal = booking.totalPrice || 0;
+  const serviceFee = Math.round(subtotal * 0.01); // 1% platform fee
+  const total = subtotal + serviceFee;
+
+  // Get first image from imageUrls array
+  const serviceImage = booking.service?.imageUrls?.[0];
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -177,20 +166,30 @@ function OrderSummary() {
 
       {/* Service Info */}
       <div className="flex gap-4">
-        <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl">
-          <Image
-            src={service.imageUrl}
-            alt={service.title}
-            fill
-            className="object-cover"
-          />
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+          {serviceImage ? (
+            <Image
+              src={serviceImage}
+              alt={booking.service?.title || "Service"}
+              fill
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-gray-400">
+              <FileImage className="h-8 w-8" />
+            </div>
+          )}
         </div>
         <div className="flex-1">
           <Badge className="mb-1 bg-pink-100 text-[#C0287F]">
-            {service.categoryName}
+            {booking.service?.category?.name || "Layanan"}
           </Badge>
-          <h3 className="font-semibold text-gray-900">{service.title}</h3>
-          <p className="text-sm text-gray-500">{vendor.displayName}</p>
+          <h3 className="font-semibold text-gray-900">
+            {booking.service?.title || "Layanan"}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {booking.vendor?.displayName || "Vendor"}
+          </p>
         </div>
       </div>
 
@@ -198,36 +197,37 @@ function OrderSummary() {
       <div className="mt-4 space-y-2 rounded-lg bg-gray-50 p-3">
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-600">{formatDate(eventDate)}</span>
+          <span className="text-gray-600">{formatDate(booking.eventDate)}</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <Clock className="h-4 w-4 text-gray-400" />
           <span className="text-gray-600">
-            {formatTime(eventDate)} ({formatDuration(service.durationMinutes)})
+            {formatTime(booking.eventDate)} (
+            {formatDuration(booking.service?.durationMinutes || 60)})
           </span>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <MapPin className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-600">{location}</span>
-        </div>
+        {booking.location && (
+          <div className="flex items-center gap-2 text-sm">
+            <MapPin className="h-4 w-4 text-gray-400" />
+            <span className="text-gray-600">{booking.location}</span>
+          </div>
+        )}
       </div>
 
       {/* Price Breakdown */}
       <div className="mt-4 space-y-2 border-t pt-4">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Harga Layanan</span>
-          <span className="text-gray-900">{formatPrice(payment.subtotal)}</span>
+          <span className="text-gray-900">{formatPrice(subtotal)}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Biaya Platform (1%)</span>
-          <span className="text-gray-900">
-            {formatPrice(payment.serviceFee)}
-          </span>
+          <span className="text-gray-900">{formatPrice(serviceFee)}</span>
         </div>
         <div className="flex items-center justify-between border-t pt-2">
           <span className="font-semibold text-gray-900">Total Pembayaran</span>
           <span className="text-xl font-bold text-[#C0287F]">
-            {formatPrice(payment.total)}
+            {formatPrice(total)}
           </span>
         </div>
       </div>
@@ -337,7 +337,13 @@ function PaymentMethodSelector({
   );
 }
 
-function PaymentInstructions({ methodId }: { methodId: string }) {
+function PaymentInstructions({
+  methodId,
+  booking,
+}: {
+  methodId: string;
+  booking: Booking | null;
+}) {
   const method = paymentMethods.find((m) => m.id === methodId);
   const [copied, setCopied] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(true);
@@ -395,12 +401,12 @@ function PaymentInstructions({ methodId }: { methodId: string }) {
               <p className="mb-1 text-xs text-[#C0287F]">Total Transfer</p>
               <div className="flex items-center justify-between">
                 <p className="text-2xl font-bold text-[#C0287F]">
-                  {formatPrice(mockBookingCheckout.payment.total)}
+                  {formatPrice(booking?.totalPrice || 0)}
                 </p>
                 <button
                   onClick={() =>
                     copyToClipboard(
-                      mockBookingCheckout.payment.total.toString(),
+                      (booking?.totalPrice || 0).toString(),
                       "amount"
                     )
                   }
@@ -425,12 +431,15 @@ function PaymentInstructions({ methodId }: { methodId: string }) {
               </p>
               <div className="flex items-center gap-2">
                 <p className="font-mono text-lg font-bold text-yellow-900">
-                  {mockBookingCheckout.payment.paymentReference}
+                  {booking?.paymentReference ||
+                    booking?.id?.slice(0, 12).toUpperCase()}
                 </p>
                 <button
                   onClick={() =>
                     copyToClipboard(
-                      mockBookingCheckout.payment.paymentReference,
+                      booking?.paymentReference ||
+                        booking?.id?.slice(0, 12).toUpperCase() ||
+                        "",
                       "ref"
                     )
                   }
@@ -460,7 +469,7 @@ function PaymentInstructions({ methodId }: { methodId: string }) {
             </div>
           </div>
           <p className="text-lg font-bold text-[#C0287F]">
-            {formatPrice(mockBookingCheckout.payment.total)}
+            {formatPrice(booking?.totalPrice || 0)}
           </p>
           <p className="text-sm text-gray-500">
             Scan dengan aplikasi e-wallet atau mobile banking
@@ -587,22 +596,101 @@ function SecurityBadge() {
 }
 
 // ============ MAIN PAGE ============
-export default function CheckoutPage() {
+function CheckoutContent() {
+  const params = useParams();
+  const router = useRouter();
+  const toast = useToast();
+  const bookingId = params.id as string;
+
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [selectedMethod, setSelectedMethod] = useState<string | null>("bca");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleSubmit = () => {
-    if (!selectedMethod || !uploadedFile) return;
+  // Fetch booking data
+  useEffect(() => {
+    const fetchBooking = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await bookingsApi.getById(bookingId);
+        setBooking(data);
+      } catch (err) {
+        console.error("Failed to fetch booking:", err);
+        setError("Gagal memuat data booking");
+        toast.error("Gagal memuat data booking");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (bookingId) {
+      fetchBooking();
+    }
+  }, [bookingId, toast]);
+
+  const handleSubmit = async () => {
+    if (!selectedMethod || !uploadedFile || !booking) return;
 
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Upload file first
+      const uploadResult = await uploadFile(
+        "/uploads/payment-proofs",
+        uploadedFile
+      );
+
+      // Then submit payment proof
+      await bookingsApi.uploadPaymentProof(bookingId, uploadResult.url);
+
+      toast.success("Bukti pembayaran berhasil dikirim!");
       setIsSuccess(true);
-    }, 2000);
+    } catch (err) {
+      console.error("Failed to submit payment proof:", err);
+      toast.error("Gagal mengirim bukti pembayaran");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#C0287F]" />
+          <p className="mt-2 text-gray-600">Memuat data checkout...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !booking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
+            <AlertCircle className="h-10 w-10 text-red-500" />
+          </div>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">
+            Booking Tidak Ditemukan
+          </h1>
+          <p className="mb-6 text-gray-600">
+            {error ||
+              "Data booking tidak dapat ditemukan atau sudah tidak valid."}
+          </p>
+          <Link href="/dashboard/customer">
+            <Button className="w-full bg-[#C0287F] hover:bg-[#a02169]">
+              Kembali ke Dashboard
+            </Button>
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -621,18 +709,18 @@ export default function CheckoutPage() {
           <div className="mb-6 rounded-xl bg-gray-50 p-4">
             <p className="text-sm text-gray-500">Nomor Pesanan</p>
             <p className="font-mono text-lg font-bold text-gray-900">
-              {mockBookingCheckout.id}
+              {booking.id}
             </p>
           </div>
           <div className="space-y-3">
-            <Link href={`/booking/${mockBookingCheckout.id}`}>
+            <Link href="/dashboard/customer">
               <Button className="w-full bg-[#C0287F] hover:bg-[#a02169]">
-                Lihat Detail Pesanan
+                Lihat Pesanan Saya
               </Button>
             </Link>
-            <Link href="/dashboard/customer">
+            <Link href="/marketplace">
               <Button variant="outline" className="w-full">
-                Kembali ke Dashboard
+                Jelajahi Layanan Lain
               </Button>
             </Link>
           </div>
@@ -643,7 +731,7 @@ export default function CheckoutPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-32">
-      <Header />
+      <Header booking={booking} />
 
       <div className="mx-auto max-w-4xl px-4 py-6">
         <div className="grid gap-4 lg:grid-cols-5">
@@ -655,7 +743,10 @@ export default function CheckoutPage() {
             />
 
             {selectedMethod && (
-              <PaymentInstructions methodId={selectedMethod} />
+              <PaymentInstructions
+                methodId={selectedMethod}
+                booking={booking}
+              />
             )}
 
             <UploadProof
@@ -667,7 +758,7 @@ export default function CheckoutPage() {
 
           {/* Right Column - Summary */}
           <div className="space-y-4 lg:col-span-2">
-            <OrderSummary />
+            <OrderSummary booking={booking} />
             <SecurityBadge />
           </div>
         </div>
@@ -703,5 +794,13 @@ export default function CheckoutPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <CustomerRoute>
+      <CheckoutContent />
+    </CustomerRoute>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   User,
   Mail,
@@ -17,9 +18,13 @@ import {
   Camera,
   Sparkles,
   Flower2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
+import { ApiError } from "@/lib/api/types";
 
 // ============ ICONS ============
 function TikTokIcon({ className }: { className?: string }) {
@@ -58,6 +63,14 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
+// ============ TYPES ============
+interface FormErrors {
+  name?: string;
+  email?: string;
+  password?: string;
+  general?: string;
+}
+
 // ============ COMPONENTS ============
 function AuthHeader() {
   return (
@@ -87,16 +100,82 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login, isAuthenticated } = useAuth();
+  const toast = useToast();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const redirect = searchParams.get("redirect") || "/marketplace";
+      router.push(redirect);
+    }
+  }, [isAuthenticated, router, searchParams]);
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!email.trim()) {
+      newErrors.email = "Email wajib diisi";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Format email tidak valid";
+    }
+
+    if (!password) {
+      newErrors.password = "Password wajib diisi";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validateForm()) return;
+
     setIsLoading(true);
-    // Simulate login
-    setTimeout(() => {
+    setErrors({});
+
+    try {
+      await login({ email, password });
+      toast.success("Login berhasil! Selamat datang kembali.");
+
+      // Redirect after successful login
+      const redirect = searchParams.get("redirect") || "/marketplace";
+      router.push(redirect);
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        const msg = (error.message || "").toLowerCase();
+        if (error.statusCode === 401 || msg.includes("invalid")) {
+          setErrors({ general: "Email atau password salah" });
+        } else if (error.statusCode === 429) {
+          setErrors({ general: "Terlalu banyak percobaan. Coba lagi nanti." });
+        } else if (error.statusCode >= 500) {
+          setErrors({
+            general: "Server sedang bermasalah. Coba lagi beberapa saat.",
+          });
+        } else {
+          setErrors({
+            general: error.message || "Terjadi kesalahan saat login",
+          });
+        }
+        toast.error(
+          error.statusCode >= 500
+            ? "Server bermasalah, coba lagi nanti."
+            : error.message || "Login gagal"
+        );
+      } else {
+        setErrors({ general: "Terjadi kesalahan. Silakan coba lagi." });
+        toast.error("Terjadi kesalahan saat login");
+      }
+    } finally {
       setIsLoading(false);
-      alert("Login berhasil! (Mock)");
-    }, 1500);
+    }
   };
 
   return (
@@ -114,9 +193,11 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         variant="outline"
         className="mb-6 w-full gap-3 py-6"
         type="button"
+        disabled
       >
         <GoogleIcon className="h-5 w-5" />
         Lanjutkan dengan Google
+        <span className="ml-2 text-xs text-gray-400">(Coming soon)</span>
       </Button>
 
       {/* Divider */}
@@ -128,6 +209,13 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
           <span className="bg-white px-4 text-gray-500">atau</span>
         </div>
       </div>
+
+      {/* General Error */}
+      {errors.general && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          {errors.general}
+        </div>
+      )}
 
       {/* Login Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -141,11 +229,17 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
               type="email"
               placeholder="nama@email.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="pl-10"
-              required
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors({ ...errors, email: undefined });
+              }}
+              className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
+              disabled={isLoading}
             />
           </div>
+          {errors.email && (
+            <p className="mt-1 text-sm text-red-500">{errors.email}</p>
+          )}
         </div>
 
         <div>
@@ -156,6 +250,9 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
             <button
               type="button"
               className="text-sm text-[#0057AB] hover:underline"
+              onClick={() =>
+                toast.info("Fitur reset password akan segera hadir")
+              }
             >
               Lupa password?
             </button>
@@ -166,9 +263,15 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-10 pr-10"
-              required
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password)
+                  setErrors({ ...errors, password: undefined });
+              }}
+              className={`pl-10 pr-10 ${
+                errors.password ? "border-red-500" : ""
+              }`}
+              disabled={isLoading}
             />
             <button
               type="button"
@@ -182,6 +285,9 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
               )}
             </button>
           </div>
+          {errors.password && (
+            <p className="mt-1 text-sm text-red-500">{errors.password}</p>
+          )}
         </div>
 
         <Button
@@ -189,7 +295,14 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
           className="w-full bg-[#0057AB] py-6 text-lg font-semibold hover:bg-[#004080]"
           disabled={isLoading}
         >
-          {isLoading ? "Memproses..." : "Masuk"}
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Memproses...
+            </>
+          ) : (
+            "Masuk"
+          )}
         </Button>
       </form>
 
@@ -199,6 +312,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         <button
           onClick={onSwitchToRegister}
           className="font-semibold text-[#C0287F] hover:underline"
+          disabled={isLoading}
         >
           Daftar sekarang
         </button>
@@ -216,25 +330,32 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     password: "",
     role: "" as "customer" | "vendor" | "",
   });
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { register, isAuthenticated } = useAuth();
+  const toast = useToast();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const redirect = searchParams.get("redirect") || "/marketplace";
+      router.push(redirect);
+    }
+  }, [isAuthenticated, router, searchParams]);
 
   const updateFormData = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field as keyof FormErrors]) {
+      setErrors({ ...errors, [field]: undefined });
+    }
   };
 
   const handleRoleSelect = (role: "customer" | "vendor") => {
     updateFormData("role", role);
     setStep(2);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    // Simulate register
-    setTimeout(() => {
-      setIsLoading(false);
-      alert(`Registrasi berhasil sebagai ${formData.role}! (Mock)`);
-    }, 1500);
   };
 
   const passwordRequirements = [
@@ -243,6 +364,83 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     { label: "Huruf kecil (a-z)", met: /[a-z]/.test(formData.password) },
     { label: "Angka (0-9)", met: /[0-9]/.test(formData.password) },
   ];
+
+  const allPasswordRequirementsMet = passwordRequirements.every((r) => r.met);
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Nama wajib diisi";
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = "Nama minimal 2 karakter";
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = "Email wajib diisi";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Format email tidak valid";
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Password wajib diisi";
+    } else if (!allPasswordRequirementsMet) {
+      newErrors.password = "Password tidak memenuhi persyaratan";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      await register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role as "customer" | "vendor",
+      });
+
+      toast.success("Registrasi berhasil! Selamat bergabung di WisudaHub.");
+
+      // Redirect after successful registration
+      const redirect = searchParams.get("redirect");
+      if (formData.role === "vendor") {
+        router.push("/vendor/dashboard");
+      } else if (redirect) {
+        router.push(redirect);
+      } else {
+        router.push("/customer/dashboard");
+      }
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        if (error.statusCode === 409) {
+          setErrors({ email: "Email sudah terdaftar" });
+          toast.error("Email sudah terdaftar. Silakan gunakan email lain.");
+        } else if (error.statusCode === 400) {
+          setErrors({ general: error.message || "Data tidak valid" });
+          toast.error(error.message || "Data tidak valid");
+        } else {
+          setErrors({
+            general: error.message || "Terjadi kesalahan saat registrasi",
+          });
+          toast.error(error.message || "Registrasi gagal");
+        }
+      } else {
+        setErrors({ general: "Terjadi kesalahan. Silakan coba lagi." });
+        toast.error("Terjadi kesalahan saat registrasi");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Step 1: Choose Role
   if (step === 1) {
@@ -343,6 +541,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
         <button
           onClick={() => setStep(1)}
           className="mb-4 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+          disabled={isLoading}
         >
           <ArrowLeft className="h-4 w-4" />
           Kembali pilih jenis akun
@@ -360,9 +559,11 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
         variant="outline"
         className="mb-6 w-full gap-3 py-6"
         type="button"
+        disabled
       >
         <GoogleIcon className="h-5 w-5" />
         Daftar dengan Google
+        <span className="ml-2 text-xs text-gray-400">(Coming soon)</span>
       </Button>
 
       {/* Divider */}
@@ -374,6 +575,13 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           <span className="bg-white px-4 text-gray-500">atau</span>
         </div>
       </div>
+
+      {/* General Error */}
+      {errors.general && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          {errors.general}
+        </div>
+      )}
 
       {/* Register Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -388,10 +596,13 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               placeholder="John Doe"
               value={formData.name}
               onChange={(e) => updateFormData("name", e.target.value)}
-              className="pl-10"
-              required
+              className={`pl-10 ${errors.name ? "border-red-500" : ""}`}
+              disabled={isLoading}
             />
           </div>
+          {errors.name && (
+            <p className="mt-1 text-sm text-red-500">{errors.name}</p>
+          )}
         </div>
 
         <div>
@@ -405,10 +616,13 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               placeholder="nama@email.com"
               value={formData.email}
               onChange={(e) => updateFormData("email", e.target.value)}
-              className="pl-10"
-              required
+              className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
+              disabled={isLoading}
             />
           </div>
+          {errors.email && (
+            <p className="mt-1 text-sm text-red-500">{errors.email}</p>
+          )}
         </div>
 
         <div>
@@ -422,8 +636,10 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               placeholder="••••••••"
               value={formData.password}
               onChange={(e) => updateFormData("password", e.target.value)}
-              className="pl-10 pr-10"
-              required
+              className={`pl-10 pr-10 ${
+                errors.password ? "border-red-500" : ""
+              }`}
+              disabled={isLoading}
             />
             <button
               type="button"
@@ -437,6 +653,9 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               )}
             </button>
           </div>
+          {errors.password && (
+            <p className="mt-1 text-sm text-red-500">{errors.password}</p>
+          )}
 
           {/* Password Requirements */}
           <div className="mt-3 space-y-1">
@@ -476,9 +695,16 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               ? "bg-[#C0287F] hover:bg-[#a02169]"
               : "bg-[#0057AB] hover:bg-[#004080]"
           }`}
-          disabled={isLoading || !passwordRequirements.every((r) => r.met)}
+          disabled={isLoading || !allPasswordRequirementsMet}
         >
-          {isLoading ? "Memproses..." : "Daftar Sekarang"}
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Memproses...
+            </>
+          ) : (
+            "Daftar Sekarang"
+          )}
         </Button>
       </form>
 
@@ -488,6 +714,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
         <button
           onClick={onSwitchToLogin}
           className="font-semibold text-[#0057AB] hover:underline"
+          disabled={isLoading}
         >
           Masuk di sini
         </button>
@@ -585,6 +812,15 @@ function Footer() {
 // ============ MAIN PAGE ============
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
+  const searchParams = useSearchParams();
+
+  // Check for mode query param
+  useEffect(() => {
+    const modeParam = searchParams.get("mode");
+    if (modeParam === "register") {
+      setMode("register");
+    }
+  }, [searchParams]);
 
   return (
     <main className="flex min-h-screen flex-col">

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import {
   User,
   Star,
@@ -17,124 +19,65 @@ import {
   Shield,
   CheckCircle,
   Phone,
-  Mail,
   ArrowLeft,
+  Loader2,
+  LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/loading";
+import { ErrorDisplay } from "@/components/ui/error";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
+import { servicesApi, testimonialsApi, bookingsApi } from "@/lib/api";
+import type { Service, Testimonial } from "@/lib/api/types";
 
-// ============ MOCK DATA ============
-const mockService = {
-  id: "1",
-  title: "Paket Foto Wisuda Premium ITB",
-  description: `Paket foto wisuda premium dengan hasil profesional untuk momen spesial kelulusanmu!
+// ============ TYPES ============
+interface ServiceDisplay {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  imageUrls: string[];
+  durationMinutes: number | null;
+  isFeatured: boolean;
+  location: string;
+  vendorId: string;
+  vendorName: string;
+  vendorAvatar: string;
+  vendorBio: string;
+  vendorPhone: string;
+  vendorLocation: string;
+  vendorJoinedDate: string;
+  vendorTotalServices: number;
+  vendorTotalBookings: number;
+  categoryName: string;
+  rating: number;
+  reviewCount: number;
+}
 
-📸 **Yang Kamu Dapat:**
-- 3 jam sesi pemotretan
-- 60 foto sudah diedit (soft copy high resolution)
-- 1 Album foto cetak 20x30 cm (10 halaman)
-- Free 5 foto cetak 4R
-- Outfit change maksimal 3x
-- Area pemotretan: Kampus ITB, Dago, Taman Hutan Raya
+interface ReviewDisplay {
+  id: string;
+  userName: string;
+  userAvatar: string;
+  rating: number;
+  comment: string;
+  date: string;
+  serviceName: string;
+}
 
-💡 **Keunggulan:**
-- Fotografer berpengalaman 5+ tahun
-- Peralatan profesional (Sony A7III + lighting kit)
-- Hasil foto dikirim H+5 via Google Drive
-- Revisi minor 2x gratis
-- Bisa request pose/konsep foto
-
-⏰ **Jadwal Tersedia:**
-Senin - Minggu, 06:00 - 18:00 WIB
-(Booking minimal H-3)`,
-  price: 850000,
-  imageUrls: [
-    "/Fotografer-wisuda.png",
-    "/Background-landing.jpg",
-    "/Background-landing-2.jpg",
-  ],
-  durationMinutes: 180,
-  isFeatured: true,
-  location: "Bandung",
-  vendorId: "v1",
-  vendorName: "Bandung Photo Studio",
-  vendorAvatar: "/young-indonesian-man-portrait.jpg",
-  vendorBio:
-    "Studio foto profesional di Bandung sejak 2019. Spesialisasi foto wisuda, prewedding, dan portrait.",
-  vendorPhone: "+62 812-3456-7890",
-  vendorLocation: "Jl. Dago No. 123, Bandung",
-  vendorJoinedDate: "2019",
-  vendorTotalServices: 5,
-  vendorTotalBookings: 342,
-  categoryName: "Fotografer",
-  rating: 4.9,
-  reviewCount: 128,
-};
-
-const mockReviews = [
-  {
-    id: "r1",
-    userName: "Sarah Putri",
-    userAvatar: "/young-indonesian-woman-portrait.png",
-    rating: 5,
-    comment:
-      "Fotografernya super ramah dan profesional! Hasilnya bagus banget, keluarga puas semua. Recommended banget!",
-    date: "2024-10-15",
-    serviceName: "Paket Foto Wisuda Premium ITB",
-  },
-  {
-    id: "r2",
-    userName: "Ahmad Rizki",
-    userAvatar: "/young-indonesian-man-portrait.jpg",
-    rating: 5,
-    comment:
-      "Worth it banget sama harganya. Foto dikirim cepet, editannya juga natural gak lebay. Pasti bakal pake lagi!",
-    date: "2024-10-12",
-    serviceName: "Paket Foto Wisuda Premium ITB",
-  },
-  {
-    id: "r3",
-    userName: "Dewi Lestari",
-    userAvatar: "/young-indonesian-woman-portrait.png",
-    rating: 4,
-    comment:
-      "Overall bagus, cuma agak telat datengnya. Tapi hasil fotonya tetep oke dan komunikasinya lancar.",
-    date: "2024-10-08",
-    serviceName: "Paket Foto Wisuda Premium ITB",
-  },
-];
-
-const relatedServices = [
-  {
-    id: "2",
-    title: "Paket Foto Candid Wisuda",
-    price: 450000,
-    imageUrl: "/Fotografer-wisuda.png",
-    vendorName: "Moment Capture",
-    rating: 4.6,
-    reviewCount: 72,
-  },
-  {
-    id: "7",
-    title: "Paket Foto Keluarga Wisuda",
-    price: 1200000,
-    imageUrl: "/Fotografer-wisuda.png",
-    vendorName: "Family Shots",
-    rating: 4.8,
-    reviewCount: 67,
-  },
-  {
-    id: "4",
-    title: "Foto Wisuda Express",
-    price: 350000,
-    imageUrl: "/Fotografer-wisuda.png",
-    vendorName: "Quick Snap BDG",
-    rating: 4.5,
-    reviewCount: 45,
-  },
-];
+interface RelatedServiceDisplay {
+  id: string;
+  title: string;
+  price: number;
+  imageUrl: string;
+  vendorName: string;
+  rating: number;
+  reviewCount: number;
+}
 
 // ============ HELPER FUNCTIONS ============
 function formatPrice(price: number) {
@@ -177,6 +120,9 @@ function TikTokIcon({ className }: { className?: string }) {
 
 // ============ COMPONENTS ============
 function Header() {
+  const router = useRouter();
+  const { isAuthenticated, user, logout } = useAuth();
+
   return (
     <header className="sticky top-0 z-50 bg-[#0057AB] px-4 py-3 shadow-lg">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
@@ -185,25 +131,54 @@ function Header() {
             variant="ghost"
             size="sm"
             className="text-white hover:bg-white/10"
+            onClick={() => router.back()}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Kembali
           </Button>
-          <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
+          <Link href="/">
+            <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            className="hidden text-white hover:bg-white/10 md:flex"
-          >
-            <Heart className="mr-2 h-4 w-4" />
-            Wishlist
-          </Button>
-          <Button className="rounded-full bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-[#a02169]">
-            <User className="mr-2 h-4 w-4" />
-            Masuk
-          </Button>
+          {isAuthenticated && user ? (
+            <>
+              <Link
+                href={
+                  user.role === "vendor"
+                    ? "/vendor/dashboard"
+                    : "/customer/dashboard"
+                }
+              >
+                <Button
+                  variant="ghost"
+                  className="hidden text-white hover:bg-white/10 md:flex"
+                >
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+              <Button
+                onClick={async () => {
+                  await logout();
+                  router.push("/auth?redirect=/marketplace");
+                }}
+                variant="ghost"
+                className="text-white hover:bg-white/10"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Keluar
+              </Button>
+            </>
+          ) : (
+            <Link href="/auth">
+              <Button className="rounded-full bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-[#a02169]">
+                <User className="mr-2 h-4 w-4" />
+                Masuk
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     </header>
@@ -283,8 +258,23 @@ function ImageGallery({ images }: { images: string[] }) {
   );
 }
 
-function ServiceInfo({ service }: { service: typeof mockService }) {
+function ServiceInfo({ service }: { service: ServiceDisplay }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const toast = useToast();
+
+  const handleShare = async () => {
+    try {
+      await navigator.share({
+        title: service.title,
+        text: service.description.substring(0, 100),
+        url: window.location.href,
+      });
+    } catch {
+      // Fallback: copy to clipboard
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Link berhasil disalin!");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -329,7 +319,7 @@ function ServiceInfo({ service }: { service: typeof mockService }) {
                 }`}
               />
             </Button>
-            <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon" onClick={handleShare}>
               <Share2 className="h-4 w-4" />
             </Button>
           </div>
@@ -371,9 +361,60 @@ function ServiceInfo({ service }: { service: typeof mockService }) {
   );
 }
 
-function BookingCard({ service }: { service: typeof mockService }) {
+function BookingCard({ service }: { service: ServiceDisplay }) {
   const [selectedDate, setSelectedDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const toast = useToast();
+
+  const handleBooking = async () => {
+    if (!isAuthenticated) {
+      toast.warning("Silakan login terlebih dahulu untuk melakukan booking");
+      router.push(`/auth?redirect=/service/${service.id}`);
+      return;
+    }
+
+    if (!selectedDate) {
+      toast.error("Silakan pilih tanggal acara terlebih dahulu");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Create booking via API
+      const booking = await bookingsApi.create({
+        serviceId: service.id,
+        eventDate: new Date(selectedDate).toISOString(),
+        location: service.location,
+        notes: notes || undefined,
+      });
+
+      toast.success("Booking berhasil dibuat!");
+      // Redirect to booking detail / checkout page
+      router.push(`/checkout/${booking.id}`);
+    } catch (error) {
+      console.error("Booking failed:", error);
+      toast.error("Gagal membuat booking. Silakan coba lagi.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChat = () => {
+    if (!isAuthenticated) {
+      toast.warning("Silakan login terlebih dahulu");
+      router.push(`/auth?redirect=/service/${service.id}`);
+      return;
+    }
+    toast.info("Fitur chat akan segera hadir");
+  };
+
+  // Calculate min date (tomorrow)
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDate = tomorrow.toISOString().split("T")[0];
 
   return (
     <div className="sticky top-24 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
@@ -396,7 +437,7 @@ function BookingCard({ service }: { service: typeof mockService }) {
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            min={new Date().toISOString().split("T")[0]}
+            min={minDate}
             className="w-full"
           />
         </div>
@@ -430,11 +471,22 @@ function BookingCard({ service }: { service: typeof mockService }) {
         </div>
 
         {/* Actions */}
-        <Button className="w-full bg-[#0057AB] py-6 text-lg font-semibold hover:bg-[#004080]">
-          Pesan Sekarang
+        <Button
+          className="w-full bg-[#0057AB] py-6 text-lg font-semibold hover:bg-[#004080]"
+          onClick={handleBooking}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Memproses...
+            </>
+          ) : (
+            "Pesan Sekarang"
+          )}
         </Button>
 
-        <Button variant="outline" className="w-full gap-2">
+        <Button variant="outline" className="w-full gap-2" onClick={handleChat}>
           <MessageCircle className="h-4 w-4" />
           Chat Vendor
         </Button>
@@ -449,7 +501,9 @@ function BookingCard({ service }: { service: typeof mockService }) {
   );
 }
 
-function VendorCard({ service }: { service: typeof mockService }) {
+function VendorCard({ service }: { service: ServiceDisplay }) {
+  const router = useRouter();
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6">
       <h3 className="mb-4 font-semibold text-gray-900">Tentang Vendor</h3>
@@ -501,15 +555,59 @@ function VendorCard({ service }: { service: typeof mockService }) {
           <MessageCircle className="h-4 w-4" />
           Chat
         </Button>
-        <Button variant="outline" className="flex-1 gap-2">
-          Lihat Profil
-        </Button>
+        <Link href={`/vendor/${service.vendorId}`} className="flex-1">
+          <Button variant="outline" className="w-full gap-2">
+            Lihat Profil
+          </Button>
+        </Link>
       </div>
     </div>
   );
 }
 
-function ReviewsSection({ reviews }: { reviews: typeof mockReviews }) {
+function ReviewsSection({
+  reviews,
+  isLoading,
+}: {
+  reviews: ReviewDisplay[];
+  isLoading?: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <div className="mb-6 flex items-center justify-between">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-8 w-24" />
+        </div>
+        <div className="space-y-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="border-b pb-6 last:border-0">
+              <div className="mb-3 flex items-start gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              </div>
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (reviews.length === 0) {
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <h3 className="mb-4 font-semibold text-gray-900">Ulasan</h3>
+        <p className="text-center text-gray-500 py-8">
+          Belum ada ulasan untuk layanan ini
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -560,20 +658,51 @@ function ReviewsSection({ reviews }: { reviews: typeof mockReviews }) {
   );
 }
 
-function RelatedServices({ services }: { services: typeof relatedServices }) {
+function RelatedServices({
+  services,
+  isLoading,
+}: {
+  services: RelatedServiceDisplay[];
+  isLoading?: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <Skeleton className="h-6 w-32 mb-4" />
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex gap-4 rounded-xl border p-3">
+              <Skeleton className="h-20 w-20 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (services.length === 0) {
+    return null;
+  }
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6">
       <h3 className="mb-4 font-semibold text-gray-900">Layanan Serupa</h3>
 
       <div className="space-y-4">
         {services.map((service) => (
-          <div
+          <Link
             key={service.id}
+            href={`/service/${service.id}`}
             className="flex gap-4 rounded-xl border p-3 transition-all hover:border-blue-200 hover:bg-blue-50/50"
           >
             <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg">
               <Image
-                src={service.imageUrl}
+                src={service.imageUrl || "/placeholder.svg"}
                 alt={service.title}
                 fill
                 className="object-cover"
@@ -594,7 +723,7 @@ function RelatedServices({ services }: { services: typeof relatedServices }) {
                 </span>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>
@@ -638,8 +767,265 @@ function Footer() {
   );
 }
 
+// ============ LOADING SKELETON ============
+function ServiceDetailSkeleton() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="grid gap-8 lg:grid-cols-3">
+        {/* Left Column */}
+        <div className="space-y-6 lg:col-span-2">
+          {/* Image Gallery Skeleton */}
+          <div className="space-y-4">
+            <Skeleton className="aspect-[4/3] w-full rounded-2xl" />
+            <div className="flex gap-2">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20 w-20 rounded-lg" />
+              ))}
+            </div>
+          </div>
+
+          {/* Service Info Skeleton */}
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-6 w-20" />
+            </div>
+            <Skeleton className="h-10 w-3/4" />
+            <div className="flex gap-4">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-24" />
+            </div>
+            <Skeleton className="h-40 w-full rounded-xl" />
+          </div>
+
+          {/* Vendor Card Skeleton */}
+          <div className="rounded-2xl border p-6">
+            <div className="flex gap-4">
+              <Skeleton className="h-16 w-16 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div>
+          <div className="rounded-2xl border p-6 space-y-4">
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============ MAIN PAGE ============
 export default function ServiceDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const serviceId = params.id as string;
+
+  // State
+  const [service, setService] = useState<ServiceDisplay | null>(null);
+  const [reviews, setReviews] = useState<ReviewDisplay[]>([]);
+  const [relatedServicesList, setRelatedServicesList] = useState<
+    RelatedServiceDisplay[]
+  >([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [isLoadingRelated, setIsLoadingRelated] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Map API service to display format
+  const mapServiceToDisplay = (apiService: Service): ServiceDisplay => ({
+    id: apiService.id,
+    title: apiService.title,
+    description: apiService.description,
+    price: apiService.price,
+    imageUrls: apiService.imageUrls?.length
+      ? apiService.imageUrls
+      : ["/placeholder.svg"],
+    durationMinutes: apiService.durationMinutes || null,
+    isFeatured: apiService.isFeatured || false,
+    location: apiService.vendor?.location || apiService.location || "Bandung",
+    vendorId: apiService.vendor?.id || apiService.vendorId || "",
+    vendorName: apiService.vendor?.displayName || "Vendor",
+    vendorAvatar: apiService.vendor?.avatarUrl || "/placeholder.svg",
+    vendorBio: apiService.vendor?.bio || "",
+    vendorPhone: "-", // Not in Vendor type, would need User
+    vendorLocation: apiService.vendor?.location || "-",
+    vendorJoinedDate: apiService.vendor?.createdAt
+      ? new Date(apiService.vendor.createdAt).getFullYear().toString()
+      : "2024",
+    vendorTotalServices: 0, // Would need separate API call
+    vendorTotalBookings: apiService.vendor?.totalBookings || 0,
+    categoryName: apiService.category?.name || "Layanan",
+    rating: apiService.rating || 0,
+    reviewCount: apiService.reviewCount || 0,
+  });
+
+  // Map API testimonial to display format
+  const mapTestimonialToDisplay = (
+    testimonial: Testimonial
+  ): ReviewDisplay => ({
+    id: testimonial.id,
+    userName: testimonial.customer?.name || "Anonymous",
+    userAvatar: testimonial.customer?.avatarUrl || "/placeholder.svg",
+    rating: testimonial.rating,
+    comment: testimonial.comment,
+    date: testimonial.createdAt,
+    serviceName: testimonial.service?.title || "",
+  });
+
+  // Fetch service data
+  useEffect(() => {
+    const fetchService = async () => {
+      if (!serviceId) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const data = await servicesApi.getById(serviceId);
+
+        if (data) {
+          setService(mapServiceToDisplay(data));
+        } else {
+          setError("Layanan tidak ditemukan");
+        }
+      } catch (err) {
+        console.error("Failed to fetch service:", err);
+        setError("Gagal memuat layanan");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchService();
+  }, [serviceId]);
+
+  // Fetch reviews
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!serviceId) return;
+
+      try {
+        setIsLoadingReviews(true);
+
+        const data = await testimonialsApi.getByService(serviceId);
+
+        if (data && Array.isArray(data)) {
+          setReviews(data.map(mapTestimonialToDisplay));
+        } else {
+          setReviews([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch reviews:", err);
+        setReviews([]);
+      } finally {
+        setIsLoadingReviews(false);
+      }
+    };
+
+    fetchReviews();
+  }, [serviceId]);
+
+  // Fetch related services
+  useEffect(() => {
+    const fetchRelatedServices = async () => {
+      if (!service?.categoryName) return;
+
+      try {
+        setIsLoadingRelated(true);
+
+        const data = await servicesApi.getAll({
+          limit: 4,
+          // Would ideally filter by category
+        });
+
+        if (data && Array.isArray(data)) {
+          const related = data
+            .filter((s: Service) => s.id !== serviceId)
+            .slice(0, 3)
+            .map((s: Service) => ({
+              id: s.id,
+              title: s.title,
+              price: s.price,
+              imageUrl: s.imageUrls?.[0] || "/placeholder.svg",
+              vendorName: s.vendor?.displayName || "Vendor",
+              rating: s.rating || 0,
+              reviewCount: s.reviewCount || 0,
+            }));
+          setRelatedServicesList(related);
+        } else {
+          setRelatedServicesList([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch related services:", err);
+        setRelatedServicesList([]);
+      } finally {
+        setIsLoadingRelated(false);
+      }
+    };
+
+    fetchRelatedServices();
+  }, [service?.categoryName, serviceId]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <Header />
+        <ServiceDetailSkeleton />
+        <Footer />
+      </main>
+    );
+  }
+
+  // Show error state
+  if (error && !service) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="py-16">
+          <ErrorDisplay
+            title="Layanan Tidak Ditemukan"
+            message={error}
+            onRetry={() => window.location.reload()}
+            showHomeButton
+            showBackButton
+          />
+        </div>
+        <Footer />
+      </main>
+    );
+  }
+
+  if (!service) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="py-16">
+          <ErrorDisplay
+            title="Layanan Tidak Ditemukan"
+            message="Layanan yang Anda cari tidak tersedia"
+            showHomeButton
+            showBackButton
+          />
+        </div>
+        <Footer />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       <Header />
@@ -648,17 +1034,20 @@ export default function ServiceDetailPage() {
         <div className="grid gap-8 lg:grid-cols-3">
           {/* Left Column - Main Content */}
           <div className="space-y-6 lg:col-span-2">
-            <ImageGallery images={mockService.imageUrls} />
-            <ServiceInfo service={mockService} />
-            <VendorCard service={mockService} />
-            <ReviewsSection reviews={mockReviews} />
+            <ImageGallery images={service.imageUrls} />
+            <ServiceInfo service={service} />
+            <VendorCard service={service} />
+            <ReviewsSection reviews={reviews} isLoading={isLoadingReviews} />
           </div>
 
           {/* Right Column - Booking Card */}
           <div className="lg:col-span-1">
-            <BookingCard service={mockService} />
+            <BookingCard service={service} />
             <div className="mt-6">
-              <RelatedServices services={relatedServices} />
+              <RelatedServices
+                services={relatedServicesList}
+                isLoading={isLoadingRelated}
+              />
             </div>
           </div>
         </div>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -29,105 +30,26 @@ import {
   Check,
   Circle,
   Info,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { bookingsApi, testimonialsApi } from "@/lib/api";
+import type { Booking, BookingStatus, PaymentStatus } from "@/lib/api/types";
+import { useToast } from "@/contexts/ToastContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { CustomerRoute } from "@/components/auth/protected-route";
 
-// ============ MOCK DATA ============
-const mockBooking = {
-  id: "BK-2024120001",
-  status: "accepted",
-  paymentStatus: "pending",
-  createdAt: "2024-12-02T10:30:00",
-  updatedAt: "2024-12-02T14:00:00",
-
-  // Service Info
-  service: {
-    id: "s1",
-    title: "Paket Foto Wisuda Premium ITB",
-    description:
-      "Paket lengkap foto wisuda dengan 3 jam pemotretan, 60 foto hasil edit profesional. Lokasi bisa di area kampus ITB dan sekitarnya seperti Taman Ganesha, Aula Barat, dan spot ikonik lainnya.",
-    price: 850000,
-    imageUrl: "/Fotografer-wisuda.png",
-    durationMinutes: 180,
-    categoryName: "Fotografer",
-  },
-
-  // Vendor Info
-  vendor: {
-    id: "v1",
-    displayName: "Bandung Photo Studio",
-    avatar: "/young-indonesian-man-portrait.jpg",
-    phone: "+62 812-3456-7890",
-    email: "bandungphoto@email.com",
-    location: "Jl. Dago No. 123, Bandung",
-    rating: 4.9,
-    reviewCount: 128,
-    instagram: "@bandungphotostudio",
-  },
-
-  // Customer Info
-  customer: {
-    id: "c1",
-    name: "Sarah Putri Andini",
-    email: "sarah.putri@email.com",
-    phone: "+62 812-1111-2222",
-    avatar: "/young-indonesian-woman-portrait.png",
-  },
-
-  // Booking Details
-  eventDate: "2025-07-15T08:00:00",
-  eventEndTime: "2025-07-15T11:00:00",
-  location: "Kampus ITB Ganesha, Bandung",
-  notes:
-    "Foto di area Aula Barat dan Taman Ganesha. Akan hadir bersama keluarga (5 orang). Mohon bawa backdrop putih jika memungkinkan.",
-
-  // Payment
-  payment: {
-    method: "Bank Transfer",
-    bankName: "Bank BCA",
-    accountNumber: "1234567890",
-    accountHolder: "Bandung Photo Studio",
-    amount: 850000,
-    proofUrl: null,
-    paidAt: null,
-    paymentReference: "PAY-2024120001",
-  },
-
-  // Timeline
-  timeline: [
-    {
-      status: "created",
-      label: "Pesanan Dibuat",
-      description: "Pesanan berhasil dibuat",
-      timestamp: "2024-12-02T10:30:00",
-      completed: true,
-    },
-    {
-      status: "accepted",
-      label: "Dikonfirmasi Vendor",
-      description: "Vendor menerima pesanan Anda",
-      timestamp: "2024-12-02T14:00:00",
-      completed: true,
-    },
-    {
-      status: "paid",
-      label: "Pembayaran",
-      description: "Menunggu pembayaran dari customer",
-      timestamp: null,
-      completed: false,
-    },
-    {
-      status: "completed",
-      label: "Selesai",
-      description: "Layanan telah selesai dilakukan",
-      timestamp: null,
-      completed: false,
-    },
-  ],
-};
+// ============ TYPES ============
+interface TimelineItem {
+  status: string;
+  label: string;
+  description: string;
+  timestamp: string | null;
+  completed: boolean;
+}
 
 // ============ HELPER FUNCTIONS ============
 function formatPrice(price: number) {
@@ -229,7 +151,7 @@ function getPaymentStatusConfig(status: string) {
 }
 
 // ============ COMPONENTS ============
-function Header() {
+function Header({ booking }: { booking: Booking }) {
   return (
     <header className="sticky top-0 z-50 border-b bg-white px-4 py-3 shadow-sm">
       <div className="mx-auto flex max-w-4xl items-center gap-4">
@@ -241,7 +163,9 @@ function Header() {
         </Link>
         <div className="flex-1">
           <h1 className="font-semibold text-gray-900">Detail Pesanan</h1>
-          <p className="text-sm text-gray-500">#{mockBooking.id}</p>
+          <p className="text-sm text-gray-500">
+            #{booking.id.slice(0, 8).toUpperCase()}
+          </p>
         </div>
         <Link href="/">
           <Image src="/Logo.svg" alt="Wisudahub" width={100} height={28} />
@@ -251,9 +175,9 @@ function Header() {
   );
 }
 
-function StatusBanner() {
-  const statusConfig = getStatusConfig(mockBooking.status);
-  const paymentConfig = getPaymentStatusConfig(mockBooking.paymentStatus);
+function StatusBanner({ booking }: { booking: Booking }) {
+  const statusConfig = getStatusConfig(booking.status);
+  const paymentConfig = getPaymentStatusConfig(booking.paymentStatus);
 
   return (
     <div className={`border ${statusConfig.bgColor} rounded-2xl p-4`}>
@@ -269,7 +193,7 @@ function StatusBanner() {
               {statusConfig.label}
             </p>
             <p className="text-sm text-gray-600">
-              Terakhir diperbarui: {formatDateTime(mockBooking.updatedAt)}
+              Terakhir diperbarui: {formatDateTime(booking.updatedAt)}
             </p>
           </div>
         </div>
@@ -281,44 +205,52 @@ function StatusBanner() {
   );
 }
 
-function ServiceCard() {
-  const { service } = mockBooking;
+function ServiceCard({ booking }: { booking: Booking }) {
+  const service = booking.service;
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <h2 className="mb-4 font-semibold text-gray-900">Detail Layanan</h2>
       <div className="flex gap-4">
-        <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl">
-          <Image
-            src={service.imageUrl}
-            alt={service.title}
-            fill
-            className="object-cover"
-          />
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+          {service?.imageUrls?.[0] ? (
+            <Image
+              src={service.imageUrls[0]}
+              alt={service?.title || "Service"}
+              fill
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <Camera className="h-8 w-8 text-gray-300" />
+            </div>
+          )}
         </div>
         <div className="flex-1">
           <Badge className="mb-2 bg-pink-100 text-[#C0287F]">
-            {service.categoryName}
+            {service?.category?.name || "Layanan"}
           </Badge>
-          <h3 className="font-semibold text-gray-900">{service.title}</h3>
+          <h3 className="font-semibold text-gray-900">
+            {service?.title || "Layanan"}
+          </h3>
           <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
             <Clock className="h-4 w-4" />
-            <span>{formatDuration(service.durationMinutes)}</span>
+            <span>{formatDuration(service?.durationMinutes || 60)}</span>
           </div>
         </div>
       </div>
-      <p className="mt-4 text-sm text-gray-600">{service.description}</p>
+      <p className="mt-4 text-sm text-gray-600">{service?.description || ""}</p>
       <div className="mt-4 flex items-center justify-between border-t pt-4">
         <span className="text-gray-500">Harga Layanan</span>
         <span className="text-xl font-bold text-[#C0287F]">
-          {formatPrice(service.price)}
+          {formatPrice(booking.totalPrice)}
         </span>
       </div>
     </div>
   );
 }
 
-function ScheduleCard() {
+function ScheduleCard({ booking }: { booking: Booking }) {
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <h2 className="mb-4 font-semibold text-gray-900">Jadwal & Lokasi</h2>
@@ -329,7 +261,7 @@ function ScheduleCard() {
           </div>
           <div>
             <p className="font-medium text-gray-900">Tanggal</p>
-            <p className="text-gray-600">{formatDate(mockBooking.eventDate)}</p>
+            <p className="text-gray-600">{formatDate(booking.eventDate)}</p>
           </div>
         </div>
         <div className="flex items-start gap-3">
@@ -339,8 +271,8 @@ function ScheduleCard() {
           <div>
             <p className="font-medium text-gray-900">Waktu</p>
             <p className="text-gray-600">
-              {formatTime(mockBooking.eventDate)} -{" "}
-              {formatTime(mockBooking.eventEndTime)}
+              {formatTime(booking.eventDate)}
+              {booking.eventEndDate && ` - ${formatTime(booking.eventEndDate)}`}
             </p>
           </div>
         </div>
@@ -350,74 +282,75 @@ function ScheduleCard() {
           </div>
           <div>
             <p className="font-medium text-gray-900">Lokasi</p>
-            <p className="text-gray-600">{mockBooking.location}</p>
+            <p className="text-gray-600">{booking.location}</p>
           </div>
         </div>
       </div>
 
-      {mockBooking.notes && (
+      {booking.notes && (
         <div className="mt-4 rounded-lg bg-gray-50 p-3">
           <p className="mb-1 text-sm font-medium text-gray-700">Catatan:</p>
-          <p className="text-sm text-gray-600">{mockBooking.notes}</p>
+          <p className="text-sm text-gray-600">{booking.notes}</p>
         </div>
       )}
     </div>
   );
 }
 
-function VendorCard() {
-  const { vendor } = mockBooking;
+function VendorCard({ booking }: { booking: Booking }) {
+  const vendor = booking.vendor;
+
+  if (!vendor) {
+    return (
+      <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <h2 className="mb-4 font-semibold text-gray-900">Vendor</h2>
+        <p className="text-gray-500">Informasi vendor tidak tersedia</p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <h2 className="mb-4 font-semibold text-gray-900">Vendor</h2>
       <div className="flex items-center gap-4">
         <Avatar className="h-16 w-16">
-          <AvatarImage src={vendor.avatar} />
+          <AvatarImage src={vendor.avatarUrl} />
           <AvatarFallback>{vendor.displayName.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900">{vendor.displayName}</h3>
           <div className="flex items-center gap-1 text-sm">
             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span className="font-medium">{vendor.rating}</span>
-            <span className="text-gray-500">({vendor.reviewCount} ulasan)</span>
+            <span className="font-medium">
+              {vendor.rating?.toFixed(1) || "0.0"}
+            </span>
+            <span className="text-gray-500">
+              ({vendor.reviewCount || 0} ulasan)
+            </span>
           </div>
-          <p className="text-sm text-gray-500">{vendor.location}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        <div className="flex items-center gap-3 text-sm">
-          <Phone className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-600">{vendor.phone}</span>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <Mail className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-600">{vendor.email}</span>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <Instagram className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-600">{vendor.instagram}</span>
+          {vendor.location && (
+            <p className="text-sm text-gray-500">{vendor.location}</p>
+          )}
         </div>
       </div>
 
       <div className="mt-4 flex gap-2">
-        <Button className="flex-1 gap-2 bg-[#0057AB] hover:bg-[#004080]">
-          <MessageCircle className="h-4 w-4" />
-          Chat Vendor
-        </Button>
+        <Link href={`/vendor/${vendor.id}`} className="flex-1">
+          <Button className="w-full gap-2 bg-[#0057AB] hover:bg-[#004080]">
+            <Store className="h-4 w-4" />
+            Lihat Profil
+          </Button>
+        </Link>
         <Button variant="outline" className="flex-1 gap-2">
-          <Phone className="h-4 w-4" />
-          Hubungi
+          <MessageCircle className="h-4 w-4" />
+          Chat
         </Button>
       </div>
     </div>
   );
 }
 
-function PaymentCard() {
-  const { payment } = mockBooking;
+function PaymentCard({ booking }: { booking: Booking }) {
   const [copied, setCopied] = useState(false);
 
   const copyToClipboard = (text: string) => {
@@ -430,32 +363,28 @@ function PaymentCard() {
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <h2 className="mb-4 font-semibold text-gray-900">Pembayaran</h2>
 
-      {mockBooking.paymentStatus === "pending" ? (
+      {booking.paymentStatus === "pending" ? (
         <>
           {/* Payment Instructions */}
           <div className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 p-4">
             <div className="mb-3 flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-blue-600" />
-              <span className="font-medium text-blue-800">
-                {payment.method}
-              </span>
+              <span className="font-medium text-blue-800">Bank Transfer</span>
             </div>
 
             <div className="space-y-3">
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-gray-500">Bank</p>
-                <p className="font-semibold text-gray-900">
-                  {payment.bankName}
-                </p>
+                <p className="font-semibold text-gray-900">Bank BCA</p>
               </div>
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-gray-500">Nomor Rekening</p>
                 <div className="flex items-center justify-between">
                   <p className="font-mono text-lg font-semibold text-gray-900">
-                    {payment.accountNumber}
+                    1234567890
                   </p>
                   <button
-                    onClick={() => copyToClipboard(payment.accountNumber)}
+                    onClick={() => copyToClipboard("1234567890")}
                     className="rounded-lg bg-gray-100 p-2 hover:bg-gray-200"
                   >
                     {copied ? (
@@ -469,40 +398,42 @@ function PaymentCard() {
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-gray-500">Atas Nama</p>
                 <p className="font-semibold text-gray-900">
-                  {payment.accountHolder}
+                  {booking.vendor?.displayName || "WisudaHub"}
                 </p>
               </div>
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-gray-500">Total Pembayaran</p>
                 <p className="text-2xl font-bold text-[#C0287F]">
-                  {formatPrice(payment.amount)}
+                  {formatPrice(booking.totalPrice)}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Payment Reference */}
-          <div className="mt-4 flex items-center gap-2 rounded-lg bg-yellow-50 p-3">
-            <Info className="h-5 w-5 text-yellow-600" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-yellow-800">
-                Gunakan kode referensi saat transfer:
-              </p>
-              <p className="font-mono font-semibold text-yellow-900">
-                {payment.paymentReference}
-              </p>
+          {booking.paymentReference && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-yellow-50 p-3">
+              <Info className="h-5 w-5 text-yellow-600" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-800">
+                  Gunakan kode referensi saat transfer:
+                </p>
+                <p className="font-mono font-semibold text-yellow-900">
+                  {booking.paymentReference}
+                </p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(booking.paymentReference || "")}
+                className="rounded-lg bg-yellow-100 p-2 hover:bg-yellow-200"
+              >
+                <Copy className="h-4 w-4 text-yellow-600" />
+              </button>
             </div>
-            <button
-              onClick={() => copyToClipboard(payment.paymentReference)}
-              className="rounded-lg bg-yellow-100 p-2 hover:bg-yellow-200"
-            >
-              <Copy className="h-4 w-4 text-yellow-600" />
-            </button>
-          </div>
+          )}
 
           {/* Upload Proof */}
           <div className="mt-4">
-            <Link href={`/checkout/${mockBooking.id}`}>
+            <Link href={`/checkout/${booking.id}`}>
               <Button className="w-full gap-2 bg-[#C0287F] hover:bg-[#a02169]">
                 <Upload className="h-4 w-4" />
                 Upload Bukti Pembayaran
@@ -515,17 +446,114 @@ function PaymentCard() {
           <CheckCircle className="mx-auto mb-2 h-12 w-12 text-green-500" />
           <p className="font-semibold text-green-800">Pembayaran Berhasil</p>
           <p className="text-sm text-green-600">
-            Dibayar pada{" "}
-            {formatDateTime(payment.paidAt || mockBooking.updatedAt)}
+            Dibayar pada {formatDateTime(booking.updatedAt)}
           </p>
+          {booking.paymentProofUrl && (
+            <a
+              href={booking.paymentProofUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-sm text-green-700 hover:underline"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Lihat Bukti Pembayaran
+            </a>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function TimelineCard() {
-  const { timeline } = mockBooking;
+function generateTimeline(booking: Booking): TimelineItem[] {
+  const timeline: TimelineItem[] = [
+    {
+      status: "created",
+      label: "Pesanan Dibuat",
+      description: "Pesanan berhasil dibuat",
+      timestamp: booking.createdAt,
+      completed: true,
+    },
+  ];
+
+  // Add accepted/rejected step
+  if (booking.status === "accepted" || booking.status === "completed") {
+    timeline.push({
+      status: "accepted",
+      label: "Dikonfirmasi Vendor",
+      description: "Vendor menerima pesanan Anda",
+      timestamp: booking.updatedAt,
+      completed: true,
+    });
+  } else if (booking.status === "rejected") {
+    timeline.push({
+      status: "rejected",
+      label: "Ditolak Vendor",
+      description: "Vendor menolak pesanan",
+      timestamp: booking.updatedAt,
+      completed: true,
+    });
+  } else if (booking.status === "cancelled") {
+    timeline.push({
+      status: "cancelled",
+      label: "Dibatalkan",
+      description: "Pesanan dibatalkan",
+      timestamp: booking.updatedAt,
+      completed: true,
+    });
+  } else {
+    timeline.push({
+      status: "accepted",
+      label: "Konfirmasi Vendor",
+      description: "Menunggu konfirmasi vendor",
+      timestamp: null,
+      completed: false,
+    });
+  }
+
+  // Add payment step
+  if (booking.paymentStatus === "paid") {
+    timeline.push({
+      status: "paid",
+      label: "Pembayaran",
+      description: "Pembayaran berhasil diterima",
+      timestamp: booking.updatedAt,
+      completed: true,
+    });
+  } else if (booking.status !== "rejected" && booking.status !== "cancelled") {
+    timeline.push({
+      status: "paid",
+      label: "Pembayaran",
+      description: "Menunggu pembayaran",
+      timestamp: null,
+      completed: false,
+    });
+  }
+
+  // Add completed step
+  if (booking.status === "completed") {
+    timeline.push({
+      status: "completed",
+      label: "Selesai",
+      description: "Layanan telah selesai dilakukan",
+      timestamp: booking.updatedAt,
+      completed: true,
+    });
+  } else if (booking.status !== "rejected" && booking.status !== "cancelled") {
+    timeline.push({
+      status: "completed",
+      label: "Selesai",
+      description: "Layanan belum selesai",
+      timestamp: null,
+      completed: false,
+    });
+  }
+
+  return timeline;
+}
+
+function TimelineCard({ booking }: { booking: Booking }) {
+  const timeline = generateTimeline(booking);
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -582,20 +610,34 @@ function TimelineCard() {
   );
 }
 
-function ActionButtons() {
+function ActionButtons({
+  booking,
+  onCancel,
+}: {
+  booking: Booking;
+  onCancel: () => void;
+}) {
+  const router = useRouter();
+
   return (
     <div className="fixed bottom-0 left-0 right-0 border-t bg-white p-4 shadow-lg md:static md:border-0 md:bg-transparent md:p-0 md:shadow-none">
       <div className="mx-auto flex max-w-4xl gap-3">
-        {mockBooking.status === "requested" && (
+        {booking.status === "requested" && (
           <Button
             variant="outline"
             className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
+            onClick={onCancel}
           >
             Batalkan Pesanan
           </Button>
         )}
-        {mockBooking.status === "completed" && (
-          <Button className="flex-1 gap-2 bg-[#EFA90D] text-black hover:bg-[#d99a0c]">
+        {booking.status === "completed" && booking.paymentStatus === "paid" && (
+          <Button
+            className="flex-1 gap-2 bg-[#EFA90D] text-black hover:bg-[#d99a0c]"
+            onClick={() =>
+              router.push(`/service/${booking.serviceId}?review=true`)
+            }
+          >
             <Star className="h-4 w-4" />
             Beri Ulasan
           </Button>
@@ -610,37 +652,132 @@ function ActionButtons() {
 }
 
 // ============ MAIN PAGE ============
-export default function BookingDetailPage() {
+function BookingDetailContent() {
+  const params = useParams();
+  const router = useRouter();
+  const toast = useToast();
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const bookingId = params.id as string;
+
+  useEffect(() => {
+    const fetchBooking = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const bookingData = await bookingsApi.getById(bookingId);
+        if (bookingData) {
+          setBooking(bookingData);
+        }
+      } catch (err) {
+        console.error("Error fetching booking:", err);
+        setError("Gagal memuat data pesanan");
+        toast.error("Gagal memuat data pesanan");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (bookingId) {
+      fetchBooking();
+    }
+  }, [bookingId, toast]);
+
+  const handleCancelBooking = async () => {
+    if (!booking) return;
+
+    if (!confirm("Apakah Anda yakin ingin membatalkan pesanan ini?")) {
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      await bookingsApi.updateStatus(booking.id, { status: "cancelled" });
+      toast.success("Pesanan berhasil dibatalkan");
+      // Refresh booking data
+      const bookingData = await bookingsApi.getById(bookingId);
+      if (bookingData) {
+        setBooking(bookingData);
+      }
+    } catch (err) {
+      console.error("Error cancelling booking:", err);
+      toast.error("Gagal membatalkan pesanan");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#C0287F]" />
+          <p className="mt-4 text-gray-600">Memuat data pesanan...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !booking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
+          <p className="mt-4 text-gray-600">
+            {error || "Pesanan tidak ditemukan"}
+          </p>
+          <Button
+            className="mt-4"
+            onClick={() => router.push("/dashboard/customer")}
+          >
+            Kembali ke Dashboard
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 pb-24 md:pb-8">
-      <Header />
+      <Header booking={booking} />
 
       <div className="mx-auto max-w-4xl px-4 py-6">
         <div className="space-y-4">
-          <StatusBanner />
+          <StatusBanner booking={booking} />
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-4">
-              <ServiceCard />
-              <ScheduleCard />
+              <ServiceCard booking={booking} />
+              <ScheduleCard booking={booking} />
             </div>
             <div className="space-y-4">
-              <PaymentCard />
-              <VendorCard />
+              <PaymentCard booking={booking} />
+              <VendorCard booking={booking} />
             </div>
           </div>
 
-          <TimelineCard />
+          <TimelineCard booking={booking} />
 
           <div className="hidden md:block">
-            <ActionButtons />
+            <ActionButtons booking={booking} onCancel={handleCancelBooking} />
           </div>
         </div>
       </div>
 
       <div className="md:hidden">
-        <ActionButtons />
+        <ActionButtons booking={booking} onCancel={handleCancelBooking} />
       </div>
     </main>
+  );
+}
+
+export default function BookingDetailPage() {
+  return (
+    <CustomerRoute>
+      <BookingDetailContent />
+    </CustomerRoute>
   );
 }

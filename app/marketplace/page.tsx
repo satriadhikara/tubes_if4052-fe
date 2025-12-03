@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   User,
   Star,
@@ -12,152 +14,57 @@ import {
   Clock,
   ChevronDown,
   Heart,
-  ShoppingCart,
   X,
+  Loader2,
+  LayoutDashboard,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/loading";
+import { useAuth } from "@/contexts/AuthContext";
+import { servicesApi, categoriesApi } from "@/lib/api";
+import type { Service, Category } from "@/lib/api/types";
+import { useDebounce } from "@/hooks";
 
-// ============ MOCK DATA ============
-const categories = [
+// ============ DEFAULT DATA (Fallback) ============
+const defaultCategories = [
   { id: "all", name: "Semua", slug: "all", icon: "🎓" },
   { id: "1", name: "Fotografer", slug: "fotografer", icon: "📷" },
   { id: "2", name: "Make Up Artist", slug: "mua", icon: "💄" },
   { id: "3", name: "Bunga & Hadiah", slug: "bunga", icon: "🌸" },
 ];
 
-const mockServices = [
-  {
-    id: "1",
-    title: "Paket Foto Wisuda Premium ITB",
-    description:
-      "3 jam pemotretan, 60 foto edit, area kampus ITB, Dago, dan sekitarnya. Include soft file & album.",
-    price: 850000,
-    imageUrls: ["/Fotografer-wisuda.png"],
-    durationMinutes: 180,
-    isFeatured: true,
-    location: "Bandung",
-    vendorName: "Bandung Photo Studio",
-    vendorAvatar: "/young-indonesian-man-portrait.jpg",
-    categoryName: "Fotografer",
-    rating: 4.9,
-    reviewCount: 128,
-  },
-  {
-    id: "2",
-    title: "Make Up Wisuda Natural Glam",
-    description:
-      "Make up natural glam + hair do elegant. Datang ke lokasi area Bandung. Tahan seharian!",
-    price: 550000,
-    imageUrls: ["/MUA.png"],
-    durationMinutes: 90,
-    isFeatured: true,
-    location: "Bandung",
-    vendorName: "Glow Beauty MUA",
-    vendorAvatar: "/young-indonesian-woman-portrait.png",
-    categoryName: "Make Up Artist",
-    rating: 4.8,
-    reviewCount: 89,
-  },
-  {
-    id: "3",
-    title: "Bouquet Bunga Wisuda Elegant",
-    description:
-      "Bouquet bunga segar premium dengan wrapping elegant. Bisa request warna dan jenis bunga.",
-    price: 350000,
-    imageUrls: ["/Bunga.png"],
-    durationMinutes: null,
-    isFeatured: false,
-    location: "Bandung",
-    vendorName: "Flora Bandung",
-    vendorAvatar: "/young-indonesian-man-smiling-portrait.jpg",
-    categoryName: "Bunga & Hadiah",
-    rating: 4.7,
-    reviewCount: 56,
-  },
-  {
-    id: "4",
-    title: "Paket Foto Candid Wisuda",
-    description:
-      "2 jam foto candid moment wisuda. 40 foto edit, kirim H+3. Perfect untuk moment spontan!",
-    price: 450000,
-    imageUrls: ["/Fotografer-wisuda.png"],
-    durationMinutes: 120,
-    isFeatured: false,
-    location: "Bandung",
-    vendorName: "Moment Capture",
-    vendorAvatar: "/young-indonesian-man-portrait.jpg",
-    categoryName: "Fotografer",
-    rating: 4.6,
-    reviewCount: 72,
-  },
-  {
-    id: "5",
-    title: "Paket MUA + Hijab Do",
-    description:
-      "Make up flawless + hijab styling modern. Cocok untuk wisudawati berhijab. Include touch up kit.",
-    price: 650000,
-    imageUrls: ["/MUA.png"],
-    durationMinutes: 120,
-    isFeatured: true,
-    location: "Bandung",
-    vendorName: "Hijab Beauty Studio",
-    vendorAvatar: "/young-indonesian-woman-portrait.png",
-    categoryName: "Make Up Artist",
-    rating: 4.9,
-    reviewCount: 104,
-  },
-  {
-    id: "6",
-    title: "Snack Bucket Wisuda",
-    description:
-      "Bucket snack premium berisi 15+ snack favorit + bunga mini. Perfect gift untuk sahabat!",
-    price: 275000,
-    imageUrls: ["/Hadiah.jpg"],
-    durationMinutes: null,
-    isFeatured: false,
-    location: "Bandung",
-    vendorName: "Gift Corner ITB",
-    vendorAvatar: "/young-indonesian-man-smiling-portrait.jpg",
-    categoryName: "Bunga & Hadiah",
-    rating: 4.5,
-    reviewCount: 43,
-  },
-  {
-    id: "7",
-    title: "Paket Foto Keluarga Wisuda",
-    description:
-      "Paket foto wisuda bersama keluarga besar. 4 jam, unlimited foto, 100 foto edit. Area ITB.",
-    price: 1200000,
-    imageUrls: ["/Fotografer-wisuda.png"],
-    durationMinutes: 240,
-    isFeatured: true,
-    location: "Bandung",
-    vendorName: "Family Shots",
-    vendorAvatar: "/young-indonesian-man-portrait.jpg",
-    categoryName: "Fotografer",
-    rating: 4.8,
-    reviewCount: 67,
-  },
-  {
-    id: "8",
-    title: "Money Bouquet Wisuda",
-    description:
-      "Bouquet uang asli dengan dekorasi bunga. Nominal bisa custom. Wrapping premium!",
-    price: 150000,
-    imageUrls: ["/Bunga.png"],
-    durationMinutes: null,
-    isFeatured: false,
-    location: "Bandung",
-    vendorName: "Creative Gift BDG",
-    vendorAvatar: "/young-indonesian-woman-portrait.png",
-    categoryName: "Bunga & Hadiah",
-    rating: 4.4,
-    reviewCount: 38,
-  },
-];
+// ============ TYPES ============
+interface ServiceDisplay {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  imageUrls: string[];
+  durationMinutes: number | null;
+  isFeatured: boolean;
+  location: string;
+  vendorName: string;
+  vendorAvatar: string;
+  categoryName: string;
+  rating: number;
+  reviewCount: number;
+}
+
+interface CategoryDisplay {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+}
+
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
 
 // ============ HELPER FUNCTIONS ============
 function formatPrice(price: number) {
@@ -191,12 +98,23 @@ function TikTokIcon({ className }: { className?: string }) {
 }
 
 // ============ COMPONENTS ============
-function Header() {
+function Header({
+  searchQuery,
+  setSearchQuery,
+}: {
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+}) {
+  const { isAuthenticated, user, logout } = useAuth();
+  const router = useRouter();
+
   return (
     <header className="sticky top-0 z-50 bg-[#0057AB] px-4 py-3 shadow-lg">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="flex items-center">
-          <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
+          <Link href="/">
+            <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
+          </Link>
         </div>
 
         {/* Search Bar */}
@@ -205,23 +123,51 @@ function Header() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
               placeholder="Cari fotografer, MUA, bunga..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-full border-0 bg-white/10 pl-10 pr-4 text-white placeholder:text-white/60 focus:bg-white focus:text-gray-900 focus:placeholder:text-gray-400"
             />
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            className="hidden text-white hover:bg-white/10 md:flex"
-          >
-            <Heart className="mr-2 h-4 w-4" />
-            Wishlist
-          </Button>
-          <Button className="rounded-full bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-[#a02169]">
-            <User className="mr-2 h-4 w-4" />
-            Masuk
-          </Button>
+          {isAuthenticated && user ? (
+            <>
+              <Link
+                href={
+                  user.role === "vendor"
+                    ? "/vendor/dashboard"
+                    : "/customer/dashboard"
+                }
+              >
+                <Button
+                  variant="ghost"
+                  className="hidden text-white hover:bg-white/10 md:flex"
+                >
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+              <Button
+                onClick={async () => {
+                  await logout();
+                  router.push("/auth?redirect=/marketplace");
+                }}
+                variant="ghost"
+                className="text-white hover:bg-white/10"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Keluar
+              </Button>
+            </>
+          ) : (
+            <Link href="/auth">
+              <Button className="rounded-full bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-[#a02169]">
+                <User className="mr-2 h-4 w-4" />
+                Masuk
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     </header>
@@ -229,11 +175,13 @@ function Header() {
 }
 
 function CategoryFilter({
+  categories,
   activeCategory,
   setActiveCategory,
 }: {
+  categories: CategoryDisplay[];
   activeCategory: string;
-  setActiveCategory: (id: string) => void;
+  setActiveCategory: (slug: string) => void;
 }) {
   return (
     <div className="border-b bg-white">
@@ -242,9 +190,9 @@ function CategoryFilter({
           {categories.map((category) => (
             <button
               key={category.id}
-              onClick={() => setActiveCategory(category.id)}
+              onClick={() => setActiveCategory(category.slug)}
               className={`flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                activeCategory === category.id
+                activeCategory === category.slug
                   ? "bg-[#0057AB] text-white shadow-md"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
@@ -264,12 +212,28 @@ function FilterBar({
   setSortBy,
   showFilter,
   setShowFilter,
+  totalServices,
+  isLoading,
+  onApplyFilter,
 }: {
   sortBy: string;
   setSortBy: (sort: string) => void;
   showFilter: boolean;
   setShowFilter: (show: boolean) => void;
+  totalServices: number;
+  isLoading: boolean;
+  onApplyFilter: (filters: { minPrice?: number; maxPrice?: number }) => void;
 }) {
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+
+  const handleApplyFilter = () => {
+    onApplyFilter({
+      minPrice: minPrice ? parseInt(minPrice) : undefined,
+      maxPrice: maxPrice ? parseInt(maxPrice) : undefined,
+    });
+  };
+
   return (
     <div className="border-b bg-gray-50">
       <div className="mx-auto max-w-7xl px-4 py-3">
@@ -286,7 +250,16 @@ function FilterBar({
               {showFilter && <X className="h-3 w-3" />}
             </Button>
             <span className="text-sm text-gray-500">
-              Menampilkan <strong>{mockServices.length}</strong> layanan
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Memuat...
+                </span>
+              ) : (
+                <>
+                  Menampilkan <strong>{totalServices}</strong> layanan
+                </>
+              )}
             </span>
           </div>
 
@@ -313,13 +286,23 @@ function FilterBar({
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Harga Minimum
               </label>
-              <Input type="number" placeholder="Rp 0" />
+              <Input
+                type="number"
+                placeholder="Rp 0"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+              />
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Harga Maksimum
               </label>
-              <Input type="number" placeholder="Rp 2.000.000" />
+              <Input
+                type="number"
+                placeholder="Rp 2.000.000"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+              />
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -332,7 +315,10 @@ function FilterBar({
               </select>
             </div>
             <div className="flex items-end">
-              <Button className="w-full bg-[#0057AB] hover:bg-[#004080]">
+              <Button
+                onClick={handleApplyFilter}
+                className="w-full bg-[#0057AB] hover:bg-[#004080]"
+              >
                 Terapkan Filter
               </Button>
             </div>
@@ -343,96 +329,155 @@ function FilterBar({
   );
 }
 
-function ServiceCard({ service }: { service: (typeof mockServices)[0] }) {
+function ServiceCard({ service }: { service: ServiceDisplay }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl">
-      {/* Image */}
-      <div className="relative h-48 overflow-hidden">
-        <Image
-          src={service.imageUrls[0] || "/placeholder.svg"}
-          alt={service.title}
-          fill
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
-        />
-        {service.isFeatured && (
-          <Badge className="absolute left-3 top-3 bg-[#EFA90D] text-black">
-            ⭐ Featured
-          </Badge>
-        )}
-        <button
-          onClick={() => setIsWishlisted(!isWishlisted)}
-          className="absolute right-3 top-3 rounded-full bg-white/90 p-2 shadow-md transition-all hover:bg-white hover:scale-110"
-        >
-          <Heart
-            className={`h-4 w-4 ${
-              isWishlisted ? "fill-red-500 text-red-500" : "text-gray-600"
-            }`}
+    <Link href={`/service/${service.id}`} className="block">
+      <div className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl">
+        {/* Image */}
+        <div className="relative h-48 overflow-hidden">
+          <Image
+            src={service.imageUrls[0] || "/placeholder.svg"}
+            alt={service.title}
+            fill
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
           />
-        </button>
+          {service.isFeatured && (
+            <Badge className="absolute left-3 top-3 bg-[#EFA90D] text-black">
+              ⭐ Featured
+            </Badge>
+          )}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              setIsWishlisted(!isWishlisted);
+            }}
+            className="absolute right-3 top-3 rounded-full bg-white/90 p-2 shadow-md transition-all hover:bg-white hover:scale-110"
+          >
+            <Heart
+              className={`h-4 w-4 ${
+                isWishlisted ? "fill-red-500 text-red-500" : "text-gray-600"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          {/* Category Badge */}
+          <Badge variant="secondary" className="mb-2 bg-blue-50 text-[#0057AB]">
+            {service.categoryName}
+          </Badge>
+
+          {/* Title */}
+          <h3 className="mb-2 line-clamp-2 font-semibold text-gray-900 group-hover:text-[#0057AB]">
+            {service.title}
+          </h3>
+
+          {/* Vendor Info */}
+          <div className="mb-3 flex items-center gap-2">
+            <Avatar className="h-6 w-6">
+              <AvatarImage src={service.vendorAvatar} />
+              <AvatarFallback>{service.vendorName.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <span className="text-sm text-gray-600">{service.vendorName}</span>
+          </div>
+
+          {/* Rating & Location */}
+          <div className="mb-3 flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1">
+              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              <span className="font-medium">{service.rating}</span>
+              <span className="text-gray-400">({service.reviewCount})</span>
+            </div>
+            {service.location && (
+              <div className="flex items-center gap-1 text-gray-500">
+                <MapPin className="h-4 w-4" />
+                {service.location}
+              </div>
+            )}
+          </div>
+
+          {/* Duration if applicable */}
+          {service.durationMinutes && (
+            <div className="mb-3 flex items-center gap-1 text-sm text-gray-500">
+              <Clock className="h-4 w-4" />
+              {formatDuration(service.durationMinutes)}
+            </div>
+          )}
+
+          {/* Price & Action */}
+          <div className="flex items-center justify-between border-t pt-3">
+            <div>
+              <p className="text-xs text-gray-500">Mulai dari</p>
+              <p className="text-lg font-bold text-[#C0287F]">
+                {formatPrice(service.price)}
+              </p>
+            </div>
+            <Button size="sm" className="bg-[#0057AB] hover:bg-[#004080]">
+              Lihat Detail
+            </Button>
+          </div>
+        </div>
       </div>
-
-      {/* Content */}
-      <div className="p-4">
-        {/* Category Badge */}
-        <Badge variant="secondary" className="mb-2 bg-blue-50 text-[#0057AB]">
-          {service.categoryName}
-        </Badge>
-
-        {/* Title */}
-        <h3 className="mb-2 line-clamp-2 font-semibold text-gray-900 group-hover:text-[#0057AB]">
-          {service.title}
-        </h3>
-
-        {/* Vendor Info */}
-        <div className="mb-3 flex items-center gap-2">
-          <Avatar className="h-6 w-6">
-            <AvatarImage src={service.vendorAvatar} />
-            <AvatarFallback>{service.vendorName.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <span className="text-sm text-gray-600">{service.vendorName}</span>
-        </div>
-
-        {/* Rating & Location */}
-        <div className="mb-3 flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1">
-            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span className="font-medium">{service.rating}</span>
-            <span className="text-gray-400">({service.reviewCount})</span>
-          </div>
-          <div className="flex items-center gap-1 text-gray-500">
-            <MapPin className="h-4 w-4" />
-            {service.location}
-          </div>
-        </div>
-
-        {/* Duration if applicable */}
-        {service.durationMinutes && (
-          <div className="mb-3 flex items-center gap-1 text-sm text-gray-500">
-            <Clock className="h-4 w-4" />
-            {formatDuration(service.durationMinutes)}
-          </div>
-        )}
-
-        {/* Price & Action */}
-        <div className="flex items-center justify-between border-t pt-3">
-          <div>
-            <p className="text-xs text-gray-500">Mulai dari</p>
-            <p className="text-lg font-bold text-[#C0287F]">
-              {formatPrice(service.price)}
-            </p>
-          </div>
-          <Button size="sm" className="bg-[#0057AB] hover:bg-[#004080]">
-            Lihat Detail
-          </Button>
-        </div>
-      </div>
-    </div>
+    </Link>
   );
 }
 
-function ServicesGrid({ services }: { services: typeof mockServices }) {
+function ServicesGrid({
+  services,
+  isLoading,
+  hasMore,
+  onLoadMore,
+}: {
+  services: ServiceDisplay[];
+  isLoading: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+}) {
+  if (isLoading && services.length === 0) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="overflow-hidden rounded-2xl border border-gray-100 bg-white"
+            >
+              <Skeleton className="h-48 w-full" />
+              <div className="p-4 space-y-3">
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && services.length === 0) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center">
+            <Search className="h-12 w-12 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            Tidak ada layanan ditemukan
+          </h3>
+          <p className="text-gray-500 mb-4">
+            Coba ubah filter atau kata kunci pencarian Anda
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -442,12 +487,29 @@ function ServicesGrid({ services }: { services: typeof mockServices }) {
       </div>
 
       {/* Load More */}
-      <div className="mt-8 text-center">
-        <Button variant="outline" size="lg" className="gap-2">
-          Muat Lebih Banyak
-          <ChevronDown className="h-4 w-4" />
-        </Button>
-      </div>
+      {hasMore && (
+        <div className="mt-8 text-center">
+          <Button
+            variant="outline"
+            size="lg"
+            className="gap-2"
+            onClick={onLoadMore}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Memuat...
+              </>
+            ) : (
+              <>
+                Muat Lebih Banyak
+                <ChevronDown className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -491,53 +553,235 @@ function Footer() {
 
 // ============ MAIN PAGE ============
 export default function MarketplacePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // State
+  const [services, setServices] = useState<ServiceDisplay[]>([]);
+  const [categories, setCategories] =
+    useState<CategoryDisplay[]>(defaultCategories);
   const [activeCategory, setActiveCategory] = useState("all");
   const [sortBy, setSortBy] = useState("featured");
   const [showFilter, setShowFilter] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalServices, setTotalServices] = useState(0);
+  const [priceFilters, setPriceFilters] = useState<{
+    minPrice?: number;
+    maxPrice?: number;
+  }>({});
 
-  // Filter services based on active category
-  const filteredServices =
-    activeCategory === "all"
-      ? mockServices
-      : mockServices.filter((service) => {
-          const categoryMap: Record<string, string> = {
-            "1": "Fotografer",
-            "2": "Make Up Artist",
-            "3": "Bunga & Hadiah",
-          };
-          return service.categoryName === categoryMap[activeCategory];
-        });
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
-  // Sort services
-  const sortedServices = [...filteredServices].sort((a, b) => {
-    switch (sortBy) {
-      case "price-low":
-        return a.price - b.price;
-      case "price-high":
-        return b.price - a.price;
-      case "rating":
-        return b.rating - a.rating;
-      case "newest":
-        return 0; // Would use createdAt in real implementation
-      default:
-        return b.isFeatured ? 1 : -1;
+  // Get category from URL
+  useEffect(() => {
+    const categoryParam = searchParams.get("category");
+    if (categoryParam) {
+      setActiveCategory(categoryParam);
     }
+  }, [searchParams]);
+
+  // Fetch categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await categoriesApi.getAll();
+        if (data && Array.isArray(data)) {
+          const iconMap: Record<string, string> = {
+            fotografer: "📷",
+            mua: "💄",
+            bunga: "🌸",
+            hadiah: "🎁",
+          };
+
+          const mappedCategories: CategoryDisplay[] = [
+            { id: "all", name: "Semua", slug: "all", icon: "🎓" },
+            ...data.map((cat: Category) => ({
+              id: cat.id,
+              name: cat.name,
+              slug: cat.slug,
+              icon: iconMap[cat.slug] || "📦",
+            })),
+          ];
+          setCategories(mappedCategories);
+        }
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Map API service to display format
+  const mapServiceToDisplay = (service: Service): ServiceDisplay => ({
+    id: service.id,
+    title: service.title,
+    description: service.description,
+    price: service.price,
+    imageUrls: service.imageUrls || ["/placeholder.svg"],
+    durationMinutes: service.durationMinutes || null,
+    isFeatured: service.isFeatured || false,
+    location: service.vendor?.location || "",
+    vendorName: service.vendor?.displayName || "Vendor",
+    vendorAvatar: service.vendor?.avatarUrl || "/placeholder.svg",
+    categoryName: service.category?.name || "Layanan",
+    rating: service.rating || 0,
+    reviewCount: service.reviewCount || 0,
   });
+
+  // Fetch services
+  const fetchServices = useCallback(
+    async (reset = false) => {
+      try {
+        setIsLoading(true);
+        const currentPage = reset ? 1 : page;
+
+        const params: Record<string, string | number | boolean> = {
+          page: currentPage,
+          limit: 12,
+        };
+
+        if (activeCategory !== "all") {
+          // Find category id by slug
+          const cat = categories.find((c) => c.slug === activeCategory);
+          if (cat && cat.id !== "all" && isUuid(cat.id)) {
+            params.categoryId = cat.id;
+          }
+        }
+
+        if (debouncedSearch) {
+          params.search = debouncedSearch;
+        }
+
+        if (priceFilters.minPrice) {
+          params.minPrice = priceFilters.minPrice;
+        }
+
+        if (priceFilters.maxPrice) {
+          params.maxPrice = priceFilters.maxPrice;
+        }
+
+        // Sort mapping
+        if (sortBy === "price-low") {
+          params.sortBy = "price";
+          params.sortOrder = "asc";
+        } else if (sortBy === "price-high") {
+          params.sortBy = "price";
+          params.sortOrder = "desc";
+        } else if (sortBy === "rating") {
+          params.sortBy = "rating";
+          params.sortOrder = "desc";
+        } else if (sortBy === "newest") {
+          params.sortBy = "createdAt";
+          params.sortOrder = "desc";
+        }
+
+        const data = await servicesApi.getAll(params);
+
+        if (data && Array.isArray(data)) {
+          const mappedServices = data.map(mapServiceToDisplay);
+
+          if (reset) {
+            setServices(mappedServices);
+            setPage(1);
+          } else {
+            setServices((prev) => [...prev, ...mappedServices]);
+          }
+
+          // Check if there are more pages (12 is page limit)
+          setHasMore(mappedServices.length === 12);
+          setTotalServices(
+            reset
+              ? mappedServices.length
+              : services.length + mappedServices.length
+          );
+        } else {
+          // No data from API
+          if (reset) {
+            setServices([]);
+          }
+          setHasMore(false);
+          setTotalServices(0);
+        }
+      } catch (error) {
+        console.error("Failed to fetch services:", error);
+        // Show empty state on error
+        if (services.length === 0) {
+          setServices([]);
+          setTotalServices(0);
+        }
+        setHasMore(false);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [activeCategory, debouncedSearch, sortBy, page, categories, priceFilters]
+  );
+
+  // Reset and fetch when filters change
+  useEffect(() => {
+    fetchServices(true);
+  }, [activeCategory, debouncedSearch, sortBy, priceFilters, categories]);
+
+  // Handle category change with URL update
+  const handleCategoryChange = (slug: string) => {
+    setActiveCategory(slug);
+    if (slug === "all") {
+      router.push("/marketplace");
+    } else {
+      router.push(`/marketplace?category=${slug}`);
+    }
+  };
+
+  // Handle load more
+  const handleLoadMore = () => {
+    setPage((prev) => prev + 1);
+    fetchServices(false);
+  };
+
+  // Handle apply filter
+  const handleApplyFilter = (filters: {
+    minPrice?: number;
+    maxPrice?: number;
+  }) => {
+    setPriceFilters(filters);
+    setShowFilter(false);
+  };
+
+  // Client-side sort for featured (if not handled by API)
+  const displayServices =
+    sortBy === "featured"
+      ? [...services].sort(
+          (a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0)
+        )
+      : services;
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <Header />
+      <Header searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       <CategoryFilter
+        categories={categories}
         activeCategory={activeCategory}
-        setActiveCategory={setActiveCategory}
+        setActiveCategory={handleCategoryChange}
       />
       <FilterBar
         sortBy={sortBy}
         setSortBy={setSortBy}
         showFilter={showFilter}
         setShowFilter={setShowFilter}
+        totalServices={totalServices}
+        isLoading={isLoading}
+        onApplyFilter={handleApplyFilter}
       />
-      <ServicesGrid services={sortedServices} />
+      <ServicesGrid
+        services={displayServices}
+        isLoading={isLoading}
+        hasMore={hasMore}
+        onLoadMore={handleLoadMore}
+      />
       <Footer />
     </main>
   );

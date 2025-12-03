@@ -1,46 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import {
-  User,
-  Star,
-  Instagram,
-} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { User, Star, Instagram, LogOut, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/AuthContext";
+import { homeApi } from "@/lib/api";
+import type { Category, Service, Testimonial } from "@/lib/api/types";
 
-const services = [
-  { title: "Fotografer Wisuda", image: "/Fotografer-wisuda.png" },
-  { title: "MUA", image: "/MUA.png" },
-  { title: "Bunga", image: "/Bunga.png" },
-  { title: "Hadiah", image: "/Hadiah.jpg" },
+// Default data fallback
+const defaultServices = [
+  {
+    title: "Fotografer Wisuda",
+    image: "/Fotografer-wisuda.png",
+    slug: "fotografer",
+  },
+  { title: "MUA", image: "/MUA.png", slug: "mua" },
+  { title: "Bunga", image: "/Bunga.png", slug: "bunga" },
+  { title: "Hadiah", image: "/Hadiah.jpg", slug: "hadiah" },
 ];
 
-const testimonials = [
+const defaultTestimonials = [
   {
-    id: 1,
+    id: "1",
     name: "Muhammad Aland Panji",
     title: "Alumni WKWK ITB 2024",
-    avatar: "/young-indonesian-man-portrait.jpg",
     content:
       "Jyujyur belum pernah nemu fotografer se-effort inih. Guys wajib banget pake wisuda hub buat merayakan wisuda kalian!",
     rating: 5,
   },
   {
-    id: 2,
+    id: "2",
     name: "Sarah Putri",
     title: "Alumni UI 2024",
-    avatar: "/young-indonesian-woman-portrait.png",
     content:
       "MUA nya super profesional dan hasilnya cantik banget! Recommended banget untuk wisuda!",
     rating: 5,
   },
   {
-    id: 3,
+    id: "3",
     name: "Budi Santoso",
     title: "Alumni UGM 2024",
-    avatar: "/young-indonesian-man-smiling-portrait.jpg",
     content:
       "Bunga dan hadiahnya bagus-bagus, pengirimannya juga tepat waktu. Terima kasih Wisudahub!",
     rating: 5,
@@ -62,21 +65,60 @@ function TikTokIcon({ className }: { className?: string }) {
 }
 
 function Header() {
+  const { isAuthenticated, user, logout } = useAuth();
+  const router = useRouter();
+
   return (
     <header className="bg-[#0057AB] px-4 py-3">
       <div className="flex w-full items-center justify-between gap-4 px-4">
         <div className="flex items-center ml-10 mb-3">
-          <Image src="/Logo.svg" alt="Wisudahub" width={150} height={40} />
+          <Link href="/">
+            <Image src="/Logo.svg" alt="Wisudahub" width={150} height={40} />
+          </Link>
         </div>
-        <div className="flex gap-3">
-          <Button className="rounded-md bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-blue-400">
-            <User className="mr-2 h-4 w-4" />
-            Masuk
-          </Button>
-          <Button className="rounded-md bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-blue-400">
-            <User className="mr-2 h-4 w-4" />
-            Daftar
-          </Button>
+        <div className="flex gap-3 items-center">
+          {isAuthenticated && user ? (
+            <>
+              <Link
+                href={
+                  user.role === "vendor"
+                    ? "/vendor/dashboard"
+                    : "/customer/dashboard"
+                }
+              >
+                <Button className="rounded-md bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-[#a02169]">
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+              <Button
+                onClick={async () => {
+                  await logout();
+                  router.push("/auth?redirect=/marketplace");
+                }}
+                variant="outline"
+                className="rounded-md border-white px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Keluar
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href="/auth">
+                <Button className="rounded-md bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-[#a02169]">
+                  <User className="mr-2 h-4 w-4" />
+                  Masuk
+                </Button>
+              </Link>
+              <Link href="/auth?mode=register">
+                <Button className="rounded-md bg-white px-4 py-2 text-sm font-medium text-[#0057AB] hover:bg-gray-100">
+                  <User className="mr-2 h-4 w-4" />
+                  Daftar
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
@@ -95,8 +137,7 @@ function HeroSection() {
       <div
         className="absolute inset-0"
         style={{
-          background:
-            "linear-gradient(270deg, #FFD93D33, #004383)",
+          background: "linear-gradient(270deg, #FFD93D33, #004383)",
         }}
       />
 
@@ -110,22 +151,32 @@ function HeroSection() {
         <p className="mb-8 text-lg text-white/90">Di sini kamu bisa cari...</p>
 
         <div className="flex flex-wrap justify-center gap-3">
-          <Button className="rounded-md bg-[#EFA90D] px-5 py-2 !text-black hover:bg-blue-400">
-            📷  Fotografer
-          </Button>
-          <Button className="rounded-md bg-[#C0287F] px-5 py-2 text-white hover:bg-yellow-400">
-            🌻  Hadiah/Bunga
-          </Button>
-          <Button className="rounded-md bg-white px-5 py-2 !text-black hover:bg-yellow-400">
-            💄  MUA
-          </Button>
+          <Link href="/marketplace?category=fotografer">
+            <Button className="rounded-md bg-[#EFA90D] px-5 py-2 !text-black hover:bg-[#d99700]">
+              📷 Fotografer
+            </Button>
+          </Link>
+          <Link href="/marketplace?category=hadiah">
+            <Button className="rounded-md bg-[#C0287F] px-5 py-2 text-white hover:bg-[#a02169]">
+              🌻 Hadiah/Bunga
+            </Button>
+          </Link>
+          <Link href="/marketplace?category=mua">
+            <Button className="rounded-md bg-white px-5 py-2 !text-black hover:bg-gray-100">
+              💄 MUA
+            </Button>
+          </Link>
         </div>
       </div>
     </section>
   );
 }
 
-function ServicesSection() {
+function ServicesSection({
+  categories,
+}: {
+  categories: typeof defaultServices;
+}) {
   return (
     <section className="bg-white px-4 py-16">
       <div className="mx-auto max-w-7xl">
@@ -137,9 +188,10 @@ function ServicesSection() {
         </p>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {services.map((service, index) => (
-            <div
+          {categories.map((service, index) => (
+            <Link
               key={index}
+              href={`/marketplace?category=${service.slug}`}
               className="group relative h-64 overflow-hidden rounded-2xl md:h-80"
             >
               <Image
@@ -154,7 +206,7 @@ function ServicesSection() {
                   {service.title}
                 </h3>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
@@ -162,8 +214,25 @@ function ServicesSection() {
   );
 }
 
-function TestimonialSection() {
+function TestimonialSection({
+  testimonials,
+}: {
+  testimonials: typeof defaultTestimonials;
+}) {
   const [activeIndex, setActiveIndex] = useState(0);
+
+  // Auto-slide testimonials
+  useEffect(() => {
+    if (testimonials.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % testimonials.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [testimonials.length]);
+
+  if (testimonials.length === 0) return null;
 
   return (
     <section className="relative flex min-h-[650px] items-center justify-center px-4 py-16">
@@ -271,12 +340,58 @@ function Footer() {
 
 // ============ MAIN PAGE ============
 export default function Home() {
+  const [categories, setCategories] = useState(defaultServices);
+  const [testimonials, setTestimonials] = useState(defaultTestimonials);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch home data from API
+  useEffect(() => {
+    const fetchHomeData = async () => {
+      try {
+        const data = await homeApi.getData();
+
+        // Map categories from API
+        if (data && data.categories && data.categories.length > 0) {
+          const mappedCategories = data.categories.map((cat: Category) => ({
+            title: cat.name,
+            image:
+              cat.iconUrl ||
+              defaultServices.find((s) => s.slug === cat.slug)?.image ||
+              "/placeholder.svg",
+            slug: cat.slug,
+          }));
+          setCategories(mappedCategories);
+        }
+
+        // Map testimonials from API
+        if (data && data.testimonials && data.testimonials.length > 0) {
+          const mappedTestimonials = data.testimonials.map((t: any) => ({
+            id: t.id,
+            name: t.name || t.customer?.name || "Anonymous",
+            title: t.occupation || `Rating ${t.rating}/5`,
+            avatar: t.avatarUrl || t.customer?.avatarUrl || "/placeholder.svg",
+            content: t.review || t.comment || "",
+            rating: t.rating,
+          }));
+          setTestimonials(mappedTestimonials);
+        }
+      } catch (error) {
+        console.error("Failed to fetch home data:", error);
+        // Keep default data on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHomeData();
+  }, []);
+
   return (
     <main className="min-h-screen">
       <Header />
       <HeroSection />
-      <ServicesSection />
-      <TestimonialSection />
+      <ServicesSection categories={categories} />
+      <TestimonialSection testimonials={testimonials} />
       <Footer />
     </main>
   );

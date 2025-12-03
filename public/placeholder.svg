@@ -1,0 +1,18 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="400" fill="#E5E7EB"/>
+  
+  <!-- Image icon -->
+  <rect x="120" y="140" width="160" height="120" rx="8" stroke="#9CA3AF" stroke-width="8" fill="none"/>
+  
+  <!-- Mountain/landscape -->
+  <path d="M128 240 L180 180 L220 220 L260 170 L272 185 L272 240 Z" fill="#9CA3AF"/>
+  
+  <!-- Sun circle -->
+  <circle cx="260" cy="170" r="20" fill="#9CA3AF"/>
+  
+  <!-- Text -->
+  <text x="200" y="300" text-anchor="middle" font-family="system-ui, sans-serif" font-size="24" font-weight="500" fill="#6B7280">
+    No Image
+  </text>
+</svg>
