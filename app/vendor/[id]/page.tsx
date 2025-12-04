@@ -71,9 +71,7 @@ function Header() {
           >
             <ArrowLeft className="h-5 w-5 text-gray-600" />
           </Link>
-          <Link href="/">
-            <Image src="/Logo.svg" alt="Wisudahub" width={120} height={32} />
-          </Link>
+          <Image src="/Logo.svg" alt="Wisudahub" width={120} height={32} />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" className="rounded-full">

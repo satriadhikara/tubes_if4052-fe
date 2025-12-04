@@ -118,10 +118,10 @@ export const bookingsApi = {
     api.patch<Booking>(`/bookings/${id}/payment-status`, data),
 
   // Payment
-  getPaymentIntent: (id: string) =>
-    api.post<{ paymentReference: string; bankDetails: Record<string, string> }>(
-      `/bookings/${id}/payment-intent`
-    ),
+  createPaymentIntent: (
+    id: string,
+    data: { paymentMethod: "manual_transfer" | "qris" }
+  ) => api.post(`/bookings/${id}/payment-intent`, data),
 };
 
 // ============ Testimonials API ============

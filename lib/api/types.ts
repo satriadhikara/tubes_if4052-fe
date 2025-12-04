@@ -187,6 +187,10 @@ export interface UploadPaymentProofRequest {
   paymentProofUrl: string;
 }
 
+export interface CreatePaymentIntentRequest {
+  paymentMethod: "manual_transfer" | "qris";
+}
+
 // ============ Testimonial/Review Types ============
 
 export interface Testimonial {

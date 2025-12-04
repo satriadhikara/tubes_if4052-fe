@@ -136,9 +136,8 @@ function Header() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Kembali
           </Button>
-          <Link href="/">
+
             <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
-          </Link>
         </div>
 
         <div className="flex items-center gap-3">
@@ -147,8 +146,8 @@ function Header() {
               <Link
                 href={
                   user.role === "vendor"
-                    ? "/vendor/dashboard"
-                    : "/customer/dashboard"
+                    ? "/dashboard/vendor"
+                    : "/dashboard/customer"
                 }
               >
                 <Button
@@ -199,12 +198,15 @@ function ImageGallery({ images }: { images: string[] }) {
   return (
     <div className="space-y-4">
       {/* Main Image */}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-gray-100">
+      <div className="relative overflow-hidden rounded-2xl bg-gray-100">
         <Image
           src={images[activeIndex] || "/placeholder.svg"}
           alt="Service image"
-          fill
-          className="object-cover"
+          width={1200}
+          height={900}
+          className="h-full w-full object-cover"
+          sizes="(min-width: 1024px) 800px, 100vw"
+          priority
         />
 
         {/* Navigation Arrows */}
@@ -226,9 +228,11 @@ function ImageGallery({ images }: { images: string[] }) {
         )}
 
         {/* Image Counter */}
-        <div className="absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-sm text-white">
-          {activeIndex + 1} / {images.length}
-        </div>
+        {images.length > 0 && (
+          <div className="absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-sm text-white">
+            {activeIndex + 1} / {images.length}
+          </div>
+        )}
       </div>
 
       {/* Thumbnails */}
@@ -247,8 +251,9 @@ function ImageGallery({ images }: { images: string[] }) {
               <Image
                 src={image}
                 alt={`Thumbnail ${index + 1}`}
-                fill
-                className="object-cover"
+                width={160}
+                height={160}
+                className="h-full w-full object-cover"
               />
             </button>
           ))}
@@ -665,7 +670,7 @@ function RelatedServices({
   services: RelatedServiceDisplay[];
   isLoading?: boolean;
 }) {
-  if (isLoading) {
+  if (isLoading && services.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-6">
         <Skeleton className="h-6 w-32 mb-4" />
@@ -1043,12 +1048,6 @@ export default function ServiceDetailPage() {
           {/* Right Column - Booking Card */}
           <div className="lg:col-span-1">
             <BookingCard service={service} />
-            <div className="mt-6">
-              <RelatedServices
-                services={relatedServicesList}
-                isLoading={isLoadingRelated}
-              />
-            </div>
           </div>
         </div>
       </div>

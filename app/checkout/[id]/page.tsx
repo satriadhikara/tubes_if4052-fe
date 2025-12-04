@@ -10,7 +10,6 @@ import {
   Clock,
   MapPin,
   CheckCircle,
-  Upload,
   CreditCard,
   Copy,
   Check,
@@ -19,7 +18,6 @@ import {
   Shield,
   Loader2,
   FileImage,
-  X,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/loading";
 import { CustomerRoute } from "@/components/auth/protected-route";
 import { useToast } from "@/contexts/ToastContext";
-import { bookingsApi, uploadFile } from "@/lib/api";
+import { bookingsApi } from "@/lib/api";
 import type { Booking } from "@/lib/api/types";
 
 const paymentMethods = [
@@ -143,9 +141,9 @@ function Header({ booking }: { booking: Booking }) {
             #{booking.id.slice(0, 8).toUpperCase()}
           </p>
         </div>
-        <Link href="/">
+        
           <Image src="/Logo.svg" alt="Wisudahub" width={100} height={28} />
-        </Link>
+
       </div>
     </header>
   );
@@ -507,85 +505,6 @@ function PaymentInstructions({
   );
 }
 
-function UploadProof({
-  uploadedFile,
-  onUpload,
-  onRemove,
-}: {
-  uploadedFile: File | null;
-  onUpload: (file: File) => void;
-  onRemove: () => void;
-}) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onUpload(file);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <h2 className="mb-4 font-semibold text-gray-900">
-        Upload Bukti Pembayaran
-      </h2>
-
-      {uploadedFile ? (
-        <div className="relative rounded-xl border bg-green-50 p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
-              <FileImage className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="flex-1">
-              <p className="font-medium text-green-800">{uploadedFile.name}</p>
-              <p className="text-sm text-green-600">
-                {(uploadedFile.size / 1024).toFixed(1)} KB
-              </p>
-            </div>
-            <button
-              onClick={onRemove}
-              className="rounded-full bg-green-100 p-2 hover:bg-green-200"
-            >
-              <X className="h-4 w-4 text-green-600" />
-            </button>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-sm text-green-700">
-            <CheckCircle className="h-4 w-4" />
-            <span>File siap diupload</span>
-          </div>
-        </div>
-      ) : (
-        <label className="flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-8 transition-all hover:border-[#C0287F] hover:bg-pink-50">
-          <div className="rounded-full bg-gray-200 p-4">
-            <Upload className="h-8 w-8 text-gray-500" />
-          </div>
-          <div className="text-center">
-            <p className="font-medium text-gray-700">
-              Klik untuk upload bukti transfer
-            </p>
-            <p className="text-sm text-gray-500">
-              PNG, JPG atau PDF (max. 5MB)
-            </p>
-          </div>
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </label>
-      )}
-
-      <div className="mt-4 flex items-start gap-2 rounded-lg bg-blue-50 p-3">
-        <Info className="h-5 w-5 flex-shrink-0 text-blue-500" />
-        <p className="text-sm text-blue-700">
-          Pastikan bukti transfer menampilkan tanggal, jumlah, dan nomor
-          referensi dengan jelas.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function SecurityBadge() {
   return (
     <div className="flex items-center justify-center gap-2 rounded-xl bg-gray-100 p-3">
@@ -607,7 +526,6 @@ function CheckoutContent() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedMethod, setSelectedMethod] = useState<string | null>("bca");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -634,24 +552,22 @@ function CheckoutContent() {
   }, [bookingId, toast]);
 
   const handleSubmit = async () => {
-    if (!selectedMethod || !uploadedFile || !booking) return;
+    if (!selectedMethod || !booking) return;
 
     setIsSubmitting(true);
     try {
-      // Upload file first
-      const uploadResult = await uploadFile(
-        "/uploads/payment-proofs",
-        uploadedFile
-      );
+      // Simulasikan pembayaran: buat payment intent agar ada reference/QR
+      const method =
+        selectedMethod === "qris" ? "qris" : ("manual_transfer" as const);
+      await bookingsApi.createPaymentIntent(bookingId, {
+        paymentMethod: method,
+      });
 
-      // Then submit payment proof
-      await bookingsApi.uploadPaymentProof(bookingId, uploadResult.url);
-
-      toast.success("Bukti pembayaran berhasil dikirim!");
+      toast.success("Pembayaran berhasil diproses!");
       setIsSuccess(true);
     } catch (err) {
-      console.error("Failed to submit payment proof:", err);
-      toast.error("Gagal mengirim bukti pembayaran");
+      console.error("Failed to process payment:", err);
+      toast.error("Gagal memproses pembayaran");
     } finally {
       setIsSubmitting(false);
     }
@@ -700,11 +616,11 @@ function CheckoutContent() {
             <CheckCircle className="h-10 w-10 text-green-500" />
           </div>
           <h1 className="mb-2 text-2xl font-bold text-gray-900">
-            Bukti Pembayaran Terkirim!
+            Pembayaran Berhasil!
           </h1>
           <p className="mb-6 text-gray-600">
-            Pembayaran Anda sedang diverifikasi. Kami akan mengirim notifikasi
-            setelah pembayaran dikonfirmasi oleh vendor.
+            Terima kasih, pembayaran Anda diproses. Detail pesanan tersedia di
+            dashboard.
           </p>
           <div className="mb-6 rounded-xl bg-gray-50 p-4">
             <p className="text-sm text-gray-500">Nomor Pesanan</p>
@@ -748,12 +664,6 @@ function CheckoutContent() {
                 booking={booking}
               />
             )}
-
-            <UploadProof
-              uploadedFile={uploadedFile}
-              onUpload={setUploadedFile}
-              onRemove={() => setUploadedFile(null)}
-            />
           </div>
 
           {/* Right Column - Summary */}
@@ -769,28 +679,20 @@ function CheckoutContent() {
         <div className="mx-auto max-w-4xl">
           <Button
             onClick={handleSubmit}
-            disabled={!selectedMethod || !uploadedFile || isSubmitting}
+            disabled={!selectedMethod || isSubmitting}
             className="w-full gap-2 bg-[#C0287F] py-6 text-lg hover:bg-[#a02169] disabled:bg-gray-300"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                Mengirim...
+                Memproses...
               </>
             ) : (
               <>
-                <Upload className="h-5 w-5" />
-                Kirim Bukti Pembayaran
+                Bayar Sekarang
               </>
             )}
           </Button>
-          {(!selectedMethod || !uploadedFile) && (
-            <p className="mt-2 text-center text-sm text-gray-500">
-              {!selectedMethod
-                ? "Pilih metode pembayaran"
-                : "Upload bukti pembayaran untuk melanjutkan"}
-            </p>
-          )}
         </div>
       </div>
     </main>

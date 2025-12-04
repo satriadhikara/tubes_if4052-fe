@@ -10,24 +10,17 @@ import {
   Calendar,
   Clock,
   MapPin,
-  ChevronRight,
   LogOut,
   Settings,
-  CreditCard,
   Package,
   CheckCircle,
   XCircle,
-  AlertCircle,
-  Upload,
   Eye,
-  MessageCircle,
   Star,
   Instagram,
-  Home,
   Search,
   FileText,
   Camera,
-  ExternalLink,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -113,12 +106,12 @@ function getStatusConfig(status: string) {
     { label: string; color: string; icon: React.ReactNode }
   > = {
     requested: {
-      label: "Menunggu Konfirmasi",
+      label: "Diproses",
       color: "bg-yellow-100 text-yellow-700 border-yellow-200",
       icon: <Clock className="h-4 w-4" />,
     },
     accepted: {
-      label: "Diterima",
+      label: "Terjadwal",
       color: "bg-blue-100 text-blue-700 border-blue-200",
       icon: <CheckCircle className="h-4 w-4" />,
     },
@@ -172,48 +165,44 @@ function DashboardHeader({ unreadCount = 0 }: { unreadCount?: number }) {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-white px-4 py-3 shadow-sm">
+    <header className="border-b border-blue-400/30 bg-[#0057AB] px-4 py-3 shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
-        <Link href="/">
-          <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
-        </Link>
+        {/* Logo - Left */}
+        <div className="flex items-center flex-1">
+          
+            <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
+      
+        </div>
 
-        <div className="flex items-center gap-4">
+        {/* Search - Center */}
+        <div className="flex items-center justify-center flex-1">
           <Link href="/marketplace">
-            <Button variant="ghost" size="sm" className="gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-white hover:bg-white/10 hover:text-white"
+            >
               <Search className="h-4 w-4" />
               <span className="hidden md:inline">Cari Layanan</span>
             </Button>
           </Link>
+        </div>
 
-          <button className="relative rounded-full p-2 hover:bg-gray-100">
-            <Bell className="h-5 w-5 text-gray-600" />
-            {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-
-          <div className="flex items-center gap-3">
-            <Avatar className="h-9 w-9">
+        {/* User Profile - Right */}
+        <div className="flex items-center justify-end flex-1">
+          <div className="flex items-center gap-3 rounded-lg bg-white/10 px-4 py-2">
+            <Avatar className="h-9 w-9 border-2 border-white/30">
               <AvatarImage src={user?.avatarUrl || "/placeholder.svg"} />
-              <AvatarFallback>{user?.name?.charAt(0) || "U"}</AvatarFallback>
+              <AvatarFallback className="bg-white text-[#0057AB] font-semibold">
+                {user?.name?.charAt(0) || "U"}
+              </AvatarFallback>
             </Avatar>
             <div className="hidden md:block">
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-semibold text-white">
                 {user?.name || "User"}
               </p>
-              <p className="text-xs text-gray-500">Customer</p>
+              <p className="text-xs text-blue-200">Customer</p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="hidden md:flex gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </div>
@@ -329,7 +318,11 @@ function BookingsTab({
   const toast = useToast();
 
   const filteredBookings =
-    filter === "all" ? bookings : bookings.filter((b) => b.status === filter);
+    filter === "all"
+      ? bookings
+      : filter === "active"
+      ? bookings.filter((b) => b.status === "accepted")
+      : bookings.filter((b) => b.status === filter);
 
   // Handle cancel booking
   const handleCancelBooking = async (bookingId: string) => {
@@ -391,8 +384,7 @@ function BookingsTab({
       <div className="flex gap-2 overflow-x-auto pb-2">
         {[
           { id: "all", label: "Semua" },
-          { id: "requested", label: "Menunggu" },
-          { id: "accepted", label: "Diterima" },
+          { id: "active", label: "Aktif" },
           { id: "completed", label: "Selesai" },
           { id: "cancelled", label: "Dibatalkan" },
         ].map((tab) => (
@@ -533,20 +525,6 @@ function BookingCard({
 
         {/* Actions */}
         <div className="mt-4 flex flex-wrap gap-2 border-t pt-4">
-          {/* Payment actions for pending */}
-          {booking.status === "accepted" &&
-            booking.paymentStatus === "pending" && (
-              <Link href={`/checkout/${booking.id}`}>
-                <Button
-                  size="sm"
-                  className="gap-2 bg-[#C0287F] hover:bg-[#a02169]"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  Bayar Sekarang
-                </Button>
-              </Link>
-            )}
-
           {/* Review button for completed */}
           {booking.status === "completed" && (
             <Button size="sm" variant="outline" className="gap-2">
@@ -562,19 +540,6 @@ function BookingCard({
               Lihat Layanan
             </Button>
           </Link>
-
-          {/* Cancel button for requested */}
-          {booking.status === "requested" && onCancel && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-              onClick={onCancel}
-            >
-              <XCircle className="h-4 w-4" />
-              Batalkan
-            </Button>
-          )}
         </div>
       </div>
     </div>
@@ -599,7 +564,6 @@ function NotificationsTab({
       booking_rejected: <XCircle className="h-5 w-5 text-red-500" />,
       booking_completed: <CheckCircle className="h-5 w-5 text-green-500" />,
       booking_cancelled: <XCircle className="h-5 w-5 text-red-500" />,
-      payment_received: <CreditCard className="h-5 w-5 text-green-500" />,
       payment_confirmed: <CheckCircle className="h-5 w-5 text-green-500" />,
       review_received: <Star className="h-5 w-5 text-yellow-500" />,
       system: <Bell className="h-5 w-5 text-gray-500" />,

@@ -112,9 +112,9 @@ function Header({
     <header className="sticky top-0 z-50 bg-[#0057AB] px-4 py-3 shadow-lg">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="flex items-center">
-          <Link href="/">
+        
             <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
-          </Link>
+      
         </div>
 
         {/* Search Bar */}
@@ -136,8 +136,8 @@ function Header({
               <Link
                 href={
                   user.role === "vendor"
-                    ? "/vendor/dashboard"
-                    : "/customer/dashboard"
+                    ? "/dashboard/vendor"
+                    : "/dashboard/customer"
                 }
               >
                 <Button
@@ -333,8 +333,8 @@ function ServiceCard({ service }: { service: ServiceDisplay }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   return (
-    <Link href={`/service/${service.id}`} className="block">
-      <div className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl">
+    <Link href={`/service/${service.id}`} className="block h-full">
+      <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl">
         {/* Image */}
         <div className="relative h-48 overflow-hidden">
           <Image
@@ -364,7 +364,7 @@ function ServiceCard({ service }: { service: ServiceDisplay }) {
         </div>
 
         {/* Content */}
-        <div className="p-4">
+        <div className="flex flex-1 flex-col p-4">
           {/* Category Badge */}
           <Badge variant="secondary" className="mb-2 bg-blue-50 text-[#0057AB]">
             {service.categoryName}
@@ -408,7 +408,7 @@ function ServiceCard({ service }: { service: ServiceDisplay }) {
           )}
 
           {/* Price & Action */}
-          <div className="flex items-center justify-between border-t pt-3">
+          <div className="mt-auto flex items-center justify-between border-t pt-3">
             <div>
               <p className="text-xs text-gray-500">Mulai dari</p>
               <p className="text-lg font-bold text-[#C0287F]">

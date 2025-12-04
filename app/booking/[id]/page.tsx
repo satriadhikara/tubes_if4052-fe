@@ -167,9 +167,8 @@ function Header({ booking }: { booking: Booking }) {
             #{booking.id.slice(0, 8).toUpperCase()}
           </p>
         </div>
-        <Link href="/">
-          <Image src="/Logo.svg" alt="Wisudahub" width={100} height={28} />
-        </Link>
+
+        <Image src="/Logo.svg" alt="Wisudahub" width={100} height={28} />
       </div>
     </header>
   );

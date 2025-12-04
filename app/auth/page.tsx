@@ -87,9 +87,7 @@ function AuthHeader() {
               Kembali
             </Button>
           </Link>
-          <Link href="/">
-            <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
-          </Link>
+          <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
         </div>
       </div>
     </header>
@@ -413,7 +411,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
       // Redirect after successful registration
       const redirect = searchParams.get("redirect");
       if (formData.role === "vendor") {
-        router.push("/vendor/dashboard");
+        router.push("/dashboard/vendor");
       } else if (redirect) {
         router.push(redirect);
       } else {

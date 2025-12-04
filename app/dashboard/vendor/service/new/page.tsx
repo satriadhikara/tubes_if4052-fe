@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { VendorRoute } from "@/components/auth/protected-route";
 import { useToast } from "@/contexts/ToastContext";
-import { categoriesApi, servicesApi, uploadFile } from "@/lib/api";
+import { categoriesApi, servicesApi } from "@/lib/api";
 import type { Category } from "@/lib/api/types";
 
 // ============ STATIC DATA ============
@@ -84,7 +84,7 @@ function formatPrice(price: number) {
 // ============ COMPONENTS ============
 function Header({ isEdit }: { isEdit: boolean }) {
   return (
-    <header className="sticky top-0 z-50 border-b bg-white px-4 py-3 shadow-sm">
+    <header className="relative z-20 border-b bg-white px-4 py-3 shadow-sm">
       <div className="mx-auto flex max-w-3xl items-center gap-4">
         <Link
           href="/dashboard/vendor"
@@ -102,9 +102,9 @@ function Header({ isEdit }: { isEdit: boolean }) {
               : "Buat layanan baru untuk ditawarkan"}
           </p>
         </div>
-        <Link href="/">
+  
           <Image src="/Logo.svg" alt="Wisudahub" width={100} height={28} />
-        </Link>
+       
       </div>
     </header>
   );
@@ -502,17 +502,24 @@ function CreateServiceContent() {
     formData.location &&
     formData.imageFiles.length > 0;
 
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const handleSubmit = async () => {
     if (!isFormValid) return;
 
-    setIsSubmitting(true);
-    try {
-      // Upload images first
-      const imageUrls: string[] = [];
-      for (const file of formData.imageFiles) {
-        const result = await uploadFile("/uploads/services", file);
-        imageUrls.push(result.url);
-      }
+      setIsSubmitting(true);
+      try {
+        // Convert images to data URLs (MVP: no backend upload)
+        const imageUrls =
+          formData.imageFiles.length > 0
+            ? await Promise.all(formData.imageFiles.map((f) => fileToDataUrl(f)))
+            : ["/placeholder.svg"];
 
       // Create service
       await servicesApi.create({
@@ -528,11 +535,11 @@ function CreateServiceContent() {
 
       toast.success("Layanan berhasil dibuat!");
       setShowSuccess(true);
-    } catch (err) {
-      console.error("Failed to create service:", err);
-      toast.error("Gagal membuat layanan");
-    } finally {
-      setIsSubmitting(false);
+      } catch (err) {
+        console.error("Failed to create service:", err);
+        toast.error("Gagal membuat layanan");
+      } finally {
+        setIsSubmitting(false);
     }
   };
 

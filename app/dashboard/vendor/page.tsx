@@ -209,12 +209,12 @@ function DashboardHeader({
   onLogout: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-50 border-b bg-white px-4 py-3 shadow-sm">
+    <header className="relative z-20 border-b bg-white px-4 py-3 shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/">
+          
             <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
-          </Link>
+         
           <Badge className="hidden bg-[#C0287F] text-white md:inline-flex">
             <Store className="mr-1 h-3 w-3" />
             Vendor Dashboard
@@ -925,7 +925,7 @@ function ServicesTab({
           <h1 className="text-2xl font-bold text-gray-900">Layanan Saya</h1>
           <p className="text-gray-600">Kelola layanan yang kamu tawarkan</p>
         </div>
-        <Link href="/dashboard/vendor/services/add">
+        <Link href="/dashboard/vendor/service/new">
           <Button className="gap-2 bg-[#C0287F] hover:bg-[#a02169]">
             <Plus className="h-4 w-4" />
             Tambah Layanan
@@ -939,7 +939,7 @@ function ServicesTab({
           <div className="col-span-2 rounded-2xl border bg-white p-8 text-center">
             <FileText className="mx-auto h-12 w-12 text-gray-300" />
             <p className="mt-4 text-gray-500">Belum ada layanan</p>
-            <Link href="/dashboard/vendor/services/add">
+            <Link href="/dashboard/vendor/service/new">
               <Button className="mt-4 gap-2 bg-[#C0287F] hover:bg-[#a02169]">
                 <Plus className="h-4 w-4" />
                 Tambah Layanan Pertama
@@ -1011,9 +1011,7 @@ function ServicesTab({
                     {formatPrice(service.price)}
                   </p>
                   <div className="flex gap-2">
-                    <Link
-                      href={`/dashboard/vendor/services/edit/${service.id}`}
-                    >
+                    <Link href={`/dashboard/vendor/service/edit/${service.id}`}>
                       <Button size="sm" variant="outline" className="gap-1">
                         <Edit className="h-3 w-3" />
                         Edit
@@ -1040,7 +1038,7 @@ function ServicesTab({
         )}
 
         {/* Add New Service Card */}
-        <Link href="/dashboard/vendor/services/add">
+        <Link href="/dashboard/vendor/service/new">
           <button className="flex h-full min-h-[300px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-gray-500 transition-all hover:border-[#C0287F] hover:bg-pink-50 hover:text-[#C0287F]">
             <div className="rounded-full bg-gray-200 p-4">
               <Plus className="h-8 w-8" />

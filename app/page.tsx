@@ -72,9 +72,7 @@ function Header() {
     <header className="bg-[#0057AB] px-4 py-3">
       <div className="flex w-full items-center justify-between gap-4 px-4">
         <div className="flex items-center ml-10 mb-3">
-          <Link href="/">
-            <Image src="/Logo.svg" alt="Wisudahub" width={150} height={40} />
-          </Link>
+          <Image src="/Logo.svg" alt="Wisudahub" width={150} height={40} />
         </div>
         <div className="flex gap-3 items-center">
           {isAuthenticated && user ? (
@@ -82,8 +80,8 @@ function Header() {
               <Link
                 href={
                   user.role === "vendor"
-                    ? "/vendor/dashboard"
-                    : "/customer/dashboard"
+                    ? "/dashboard/vendor"
+                    : "/dashboard/customer"
                 }
               >
                 <Button className="rounded-md bg-[#C0287F] px-4 py-2 text-sm font-medium text-white hover:bg-[#a02169]">

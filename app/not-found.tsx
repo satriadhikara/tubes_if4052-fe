@@ -10,9 +10,7 @@ export default function NotFound() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-white to-pink-50 px-4">
       <div className="w-full max-w-lg text-center">
         {/* Logo */}
-        <Link href="/" className="mb-8 inline-block">
           <Image src="/Logo.svg" alt="Wisudahub" width={150} height={40} />
-        </Link>
 
         {/* Illustration */}
         <div className="relative mx-auto mb-8 h-64 w-64">
