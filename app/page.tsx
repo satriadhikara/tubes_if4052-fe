@@ -31,6 +31,7 @@ const defaultTestimonials = [
     content:
       "Jyujyur belum pernah nemu fotografer se-effort inih. Guys wajib banget pake wisuda hub buat merayakan wisuda kalian!",
     rating: 5,
+    avatar: "/placeholder.svg",
   },
   {
     id: "2",
@@ -39,6 +40,7 @@ const defaultTestimonials = [
     content:
       "MUA nya super profesional dan hasilnya cantik banget! Recommended banget untuk wisuda!",
     rating: 5,
+    avatar: "/placeholder.svg",
   },
   {
     id: "3",
@@ -47,6 +49,7 @@ const defaultTestimonials = [
     content:
       "Bunga dan hadiahnya bagus-bagus, pengirimannya juga tepat waktu. Terima kasih Wisudahub!",
     rating: 5,
+    avatar: "/placeholder.svg",
   },
 ];
 

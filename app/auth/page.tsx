@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -78,11 +78,7 @@ function AuthHeader() {
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/10"
-            >
+            <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Kembali
             </Button>
@@ -165,7 +161,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         toast.error(
           error.statusCode >= 500
             ? "Server bermasalah, coba lagi nanti."
-            : error.message || "Login gagal"
+            : error.message || "Login gagal",
         );
       } else {
         setErrors({ general: "Terjadi kesalahan. Silakan coba lagi." });
@@ -180,19 +176,12 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
     <div className="w-full max-w-md">
       {/* Header */}
       <div className="mb-8 text-center">
-        <h1 className="mb-2 text-2xl font-bold text-gray-900">
-          Selamat Datang Kembali! 👋
-        </h1>
+        <h1 className="mb-2 text-2xl font-bold text-gray-900">Selamat Datang Kembali! 👋</h1>
         <p className="text-gray-600">Masuk ke akun WisudaHub kamu</p>
       </div>
 
       {/* Social Login */}
-      <Button
-        variant="outline"
-        className="mb-6 w-full gap-3 py-6"
-        type="button"
-        disabled
-      >
+      <Button variant="outline" className="mb-6 w-full gap-3 py-6" type="button" disabled>
         <GoogleIcon className="h-5 w-5" />
         Lanjutkan dengan Google
         <span className="ml-2 text-xs text-gray-400">(Coming soon)</span>
@@ -210,17 +199,13 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
 
       {/* General Error */}
       {errors.general && (
-        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
-          {errors.general}
-        </div>
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{errors.general}</div>
       )}
 
       {/* Login Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Email
-          </label>
+          <label className="mb-2 block text-sm font-medium text-gray-700">Email</label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <Input
@@ -235,22 +220,16 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
               disabled={isLoading}
             />
           </div>
-          {errors.email && (
-            <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-          )}
+          {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email}</p>}
         </div>
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700">
-              Password
-            </label>
+            <label className="text-sm font-medium text-gray-700">Password</label>
             <button
               type="button"
               className="text-sm text-[#0057AB] hover:underline"
-              onClick={() =>
-                toast.info("Fitur reset password akan segera hadir")
-              }
+              onClick={() => toast.info("Fitur reset password akan segera hadir")}
             >
               Lupa password?
             </button>
@@ -263,12 +242,9 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
-                if (errors.password)
-                  setErrors({ ...errors, password: undefined });
+                if (errors.password) setErrors({ ...errors, password: undefined });
               }}
-              className={`pl-10 pr-10 ${
-                errors.password ? "border-red-500" : ""
-              }`}
+              className={`pl-10 pr-10 ${errors.password ? "border-red-500" : ""}`}
               disabled={isLoading}
             />
             <button
@@ -276,16 +252,10 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              {showPassword ? (
-                <EyeOff className="h-5 w-5" />
-              ) : (
-                <Eye className="h-5 w-5" />
-              )}
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
-          {errors.password && (
-            <p className="mt-1 text-sm text-red-500">{errors.password}</p>
-          )}
+          {errors.password && <p className="mt-1 text-sm text-red-500">{errors.password}</p>}
         </div>
 
         <Button
@@ -445,9 +415,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     return (
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="mb-2 text-2xl font-bold text-gray-900">
-            Bergabung dengan WisudaHub 🎓
-          </h1>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">Bergabung dengan WisudaHub 🎓</h1>
           <p className="text-gray-600">Pilih jenis akun yang ingin kamu buat</p>
         </div>
 
@@ -466,8 +434,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                   Saya Wisudawan / Pembeli
                 </h3>
                 <p className="text-sm text-gray-600">
-                  Cari dan pesan jasa fotografer, MUA, bunga, dan hadiah untuk
-                  wisuda
+                  Cari dan pesan jasa fotografer, MUA, bunga, dan hadiah untuk wisuda
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
@@ -498,8 +465,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                   Saya Vendor / Penyedia Jasa
                 </h3>
                 <p className="text-sm text-gray-600">
-                  Tawarkan jasa fotografer, MUA, atau jualan bunga & hadiah
-                  wisuda
+                  Tawarkan jasa fotografer, MUA, atau jualan bunga & hadiah wisuda
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
@@ -545,20 +511,13 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           Kembali pilih jenis akun
         </button>
         <h1 className="mb-2 text-2xl font-bold text-gray-900">
-          {formData.role === "vendor"
-            ? "Daftar sebagai Vendor 🏪"
-            : "Daftar sebagai Customer 🎓"}
+          {formData.role === "vendor" ? "Daftar sebagai Vendor 🏪" : "Daftar sebagai Customer 🎓"}
         </h1>
         <p className="text-gray-600">Lengkapi data diri kamu untuk mulai</p>
       </div>
 
       {/* Social Register */}
-      <Button
-        variant="outline"
-        className="mb-6 w-full gap-3 py-6"
-        type="button"
-        disabled
-      >
+      <Button variant="outline" className="mb-6 w-full gap-3 py-6" type="button" disabled>
         <GoogleIcon className="h-5 w-5" />
         Daftar dengan Google
         <span className="ml-2 text-xs text-gray-400">(Coming soon)</span>
@@ -576,17 +535,13 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 
       {/* General Error */}
       {errors.general && (
-        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
-          {errors.general}
-        </div>
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{errors.general}</div>
       )}
 
       {/* Register Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Nama Lengkap
-          </label>
+          <label className="mb-2 block text-sm font-medium text-gray-700">Nama Lengkap</label>
           <div className="relative">
             <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <Input
@@ -598,15 +553,11 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               disabled={isLoading}
             />
           </div>
-          {errors.name && (
-            <p className="mt-1 text-sm text-red-500">{errors.name}</p>
-          )}
+          {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Email
-          </label>
+          <label className="mb-2 block text-sm font-medium text-gray-700">Email</label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <Input
@@ -618,15 +569,11 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               disabled={isLoading}
             />
           </div>
-          {errors.email && (
-            <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-          )}
+          {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email}</p>}
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Password
-          </label>
+          <label className="mb-2 block text-sm font-medium text-gray-700">Password</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <Input
@@ -634,9 +581,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               placeholder="••••••••"
               value={formData.password}
               onChange={(e) => updateFormData("password", e.target.value)}
-              className={`pl-10 pr-10 ${
-                errors.password ? "border-red-500" : ""
-              }`}
+              className={`pl-10 pr-10 ${errors.password ? "border-red-500" : ""}`}
               disabled={isLoading}
             />
             <button
@@ -644,16 +589,10 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              {showPassword ? (
-                <EyeOff className="h-5 w-5" />
-              ) : (
-                <Eye className="h-5 w-5" />
-              )}
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
-          {errors.password && (
-            <p className="mt-1 text-sm text-red-500">{errors.password}</p>
-          )}
+          {errors.password && <p className="mt-1 text-sm text-red-500">{errors.password}</p>}
 
           {/* Password Requirements */}
           <div className="mt-3 space-y-1">
@@ -664,9 +603,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                   req.met ? "text-green-600" : "text-gray-400"
                 }`}
               >
-                <CheckCircle
-                  className={`h-3 w-3 ${req.met ? "fill-green-600" : ""}`}
-                />
+                <CheckCircle className={`h-3 w-3 ${req.met ? "fill-green-600" : ""}`} />
                 {req.label}
               </div>
             ))}
@@ -738,8 +675,8 @@ function AuthIllustration() {
           <span className="text-[#EFA90D]">Gapake Ribet!</span>
         </h2>
         <p className="max-w-md text-lg text-white/80">
-          Platform terlengkap untuk kebutuhan wisuda kamu. Dari fotografer, MUA,
-          sampai bunga dan hadiah.
+          Platform terlengkap untuk kebutuhan wisuda kamu. Dari fotografer, MUA, sampai bunga dan
+          hadiah.
         </p>
       </div>
 
@@ -785,20 +722,12 @@ function Footer() {
   return (
     <footer className="border-t bg-gray-50 px-4 py-6">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 md:flex-row">
-        <p className="text-sm text-gray-500">
-          © 2025 WisudaHub. All rights reserved
-        </p>
+        <p className="text-sm text-gray-500">© 2025 WisudaHub. All rights reserved</p>
         <div className="flex gap-4">
-          <a
-            href="#"
-            className="text-gray-400 transition-colors hover:text-[#0057AB]"
-          >
+          <a href="#" className="text-gray-400 transition-colors hover:text-[#0057AB]">
             <Instagram className="h-5 w-5" />
           </a>
-          <a
-            href="#"
-            className="text-gray-400 transition-colors hover:text-[#0057AB]"
-          >
+          <a href="#" className="text-gray-400 transition-colors hover:text-[#0057AB]">
             <TikTokIcon className="h-5 w-5" />
           </a>
         </div>
@@ -807,8 +736,20 @@ function Footer() {
   );
 }
 
-// ============ MAIN PAGE ============
-export default function AuthPage() {
+// ============ LOADING FALLBACK ============
+function AuthLoading() {
+  return (
+    <main className="flex min-h-screen flex-col">
+      <AuthHeader />
+      <div className="flex flex-1 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0057AB] border-t-transparent" />
+      </div>
+    </main>
+  );
+}
+
+// ============ MAIN PAGE CONTENT ============
+function AuthPageContent() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const searchParams = useSearchParams();
 
@@ -843,5 +784,14 @@ export default function AuthPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+// ============ EXPORTED PAGE WITH SUSPENSE ============
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<AuthLoading />}>
+      <AuthPageContent />
+    </Suspense>
   );
 }

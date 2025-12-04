@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -551,8 +551,24 @@ function Footer() {
   );
 }
 
-// ============ MAIN PAGE ============
-export default function MarketplacePage() {
+// ============ LOADING FALLBACK ============
+function MarketplaceLoading() {
+  return (
+    <main className="min-h-screen bg-gray-50">
+      <header className="sticky top-0 z-50 bg-[#0057AB] px-4 py-3 shadow-lg">
+        <div className="mx-auto flex max-w-7xl items-center justify-center">
+          <Image src="/Logo.svg" alt="Wisudahub" width={130} height={36} />
+        </div>
+      </header>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0057AB]" />
+      </div>
+    </main>
+  );
+}
+
+// ============ MAIN PAGE CONTENT ============
+function MarketplaceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -784,5 +800,14 @@ export default function MarketplacePage() {
       />
       <Footer />
     </main>
+  );
+}
+
+// ============ EXPORTED PAGE WITH SUSPENSE ============
+export default function MarketplacePage() {
+  return (
+    <Suspense fallback={<MarketplaceLoading />}>
+      <MarketplaceContent />
+    </Suspense>
   );
 }
