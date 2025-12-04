@@ -27,3 +27,5 @@ jobs:
                   tags: |
                       satriadhikara/tubes_if4052-fe:latest
                   platforms: linux/amd64
+                  build-args: |
+                      NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
